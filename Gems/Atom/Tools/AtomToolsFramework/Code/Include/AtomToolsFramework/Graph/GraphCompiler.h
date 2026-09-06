@@ -51,6 +51,9 @@ namespace AtomToolsFramework
         //! caller can leave the replacement queued until the active job acknowledges cancellation and releases the compiler.
         virtual bool Reset();
 
+        //! Requests cooperative cancellation of the active compilation without reserving a new one.
+        virtual void Cancel();
+
         //! Assign the current graph compiler state.
         using StateChangeHandler = AZStd::function<void(const GraphCompiler*)>;
         virtual void SetStateChangeHandler(StateChangeHandler handler);
@@ -73,6 +76,28 @@ namespace AtomToolsFramework
 
         //! Dysfunction initiates and executes the graph compile, changing states accordingly.
         virtual bool CompileGraph(GraphModel::GraphPtr graph, const AZStd::string& graphName, const AZStd::string& graphPath);
+
+        //! Records whether the compile about to run should produce the derived compiler's full production output in addition to whatever
+        //! reduced output it maintains for its own preview. Set by the document immediately before the compile job is started, so it is
+        //! stable for the duration of that compile. A compiler that draws no such distinction can ignore this entirely.
+        void SetProductionOutputRequested(bool requested)
+        {
+            m_productionOutputRequested = requested;
+        }
+
+        //! See SetProductionOutputRequested. Read from the compile worker thread.
+        bool IsProductionOutputRequested() const
+        {
+            return m_productionOutputRequested;
+        }
+
+        //! Returns true when this compiler keeps a production output distinct from the reduced one it maintains for a preview, and that
+        //! production output is behind the graph as of the last compile. A compiler that produces a single output has nothing to
+        //! publish and always reports false.
+        virtual bool IsProductionOutputStale() const
+        {
+            return false;
+        }
 
     protected:
         // Helper function to log and report status messages.
@@ -119,6 +144,9 @@ namespace AtomToolsFramework
         mutable AZStd::mutex m_compileLifecycleMutex;
         AZStd::atomic_bool m_compileInProgress = false;
         AZStd::atomic_bool m_cancelRequested = false;
+
+        // True when this compile was asked for the full production output. See SetProductionOutputRequested.
+        AZStd::atomic_bool m_productionOutputRequested = false;
         bool m_compileReserved = false;
 
         // Optional function for handling state changes

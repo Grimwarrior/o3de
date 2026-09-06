@@ -85,6 +85,25 @@ namespace AtomToolsFramework
         return false;
     }
 
+    void GraphCompiler::Cancel()
+    {
+        bool stopAssetStatusReporting = false;
+        {
+            AZStd::scoped_lock lock(m_compileLifecycleMutex);
+            if (m_compileInProgress)
+            {
+                m_cancelRequested = true;
+                stopAssetStatusReporting = true;
+            }
+        }
+
+        if (stopAssetStatusReporting)
+        {
+            AssetStatusReporterSystemRequestBus::Event(
+                m_toolId, &AssetStatusReporterSystemRequestBus::Events::StopReporting, m_assetReportRequestId);
+        }
+    }
+
     void GraphCompiler::SetStateChangeHandler(StateChangeHandler handler)
     {
         m_stateChangeHandler = handler;

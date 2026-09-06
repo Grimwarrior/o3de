@@ -6,13 +6,19 @@
  *
  */
 
+#include <AtomToolsFramework/Document/AtomToolsDocumentRequestBus.h>
+#include <AtomToolsFramework/Graph/GraphDocumentRequestBus.h>
 #include <AtomToolsFramework/SettingsDialog/SettingsDialog.h>
 #include <AzCore/IO/FileIO.h>
+#include <AzCore/Settings/SettingsRegistry.h>
 #include <AzQtComponents/Components/StyleManager.h>
 #include <GraphCanvas/Widgets/NodePalette/TreeItems/NodePaletteTreeItem.h>
+#include <Document/MaterialGraphCompiler.h>
 #include <Window/MaterialCanvasMainWindow.h>
 #include <Window/MaterialCanvasViewportContent.h>
 
+#include <QAction>
+#include <QMenu>
 #include <QMessageBox>
 
 namespace MaterialCanvas
@@ -116,6 +122,94 @@ namespace MaterialCanvas
         AzQtComponents::StyleManager::setStyleSheet(this, QStringLiteral(":/GraphView/GraphView.qss"));
 
         OnDocumentOpened(AZ::Uuid::CreateNull());
+
+        AtomToolsFramework::GraphDocumentNotificationBus::Handler::BusConnect(m_toolId);
+    }
+
+    MaterialCanvasMainWindow::~MaterialCanvasMainWindow()
+    {
+        AtomToolsFramework::GraphDocumentNotificationBus::Handler::BusDisconnect();
+    }
+
+    void MaterialCanvasMainWindow::CreateMenus(QMenuBar* menuBar)
+    {
+        Base::CreateMenus(menuBar);
+
+        // Apply sits next to Save because the two are halves of one decision. Save writes the graph; Apply publishes the material the
+        // graph describes. An edit refreshes only the reduced preview build, so without Apply the material the rest of the engine loads
+        // would change on no occasion other than a save, and there would be no way to try a change in a level without committing it to
+        // the source file first.
+        //
+        // Built by hand rather than through the base's CreateActionAtPosition. That is a function template defined in
+        // AtomToolsDocumentMainWindow.cpp rather than in its header, so it can only be instantiated inside that translation unit;
+        // calling it from here leaves a declared but undefined instantiation over a lambda's internal linkage closure type, which is
+        // MSVC's C5046 and, warnings as errors aside, an unresolved external at link time. These are the five lines it would have run.
+        m_actionApply = new QAction(tr("A&pply"), m_menuFile);
+        m_actionApply->setShortcut(QKeySequence("Ctrl+Shift+A"));
+        m_actionApply->setShortcutContext(Qt::WindowShortcut);
+        QObject::connect(
+            m_actionApply,
+            &QAction::triggered,
+            m_menuFile,
+            [this]()
+            {
+                AtomToolsFramework::GraphDocumentRequestBus::Event(
+                    GetCurrentDocumentId(), &AtomToolsFramework::GraphDocumentRequestBus::Events::QueueApplyGraph);
+            });
+        m_menuFile->insertAction(m_actionSaveAsCopy, m_actionApply);
+    }
+
+    void MaterialCanvasMainWindow::UpdateMenus(QMenuBar* menuBar)
+    {
+        Base::UpdateMenus(menuBar);
+
+        // The base constructor builds the menus, and a menu update can be queued before this class has finished adding to them.
+        if (!m_actionApply)
+        {
+            return;
+        }
+
+        const AZ::Uuid documentId = GetCurrentDocumentId();
+
+        bool isOpen = false;
+        AtomToolsFramework::AtomToolsDocumentRequestBus::EventResult(
+            isOpen, documentId, &AtomToolsFramework::AtomToolsDocumentRequestBus::Events::IsOpen);
+
+        bool applyNeeded = false;
+        AtomToolsFramework::GraphDocumentRequestBus::EventResult(
+            applyNeeded, documentId, &AtomToolsFramework::GraphDocumentRequestBus::Events::IsApplyGraphNeeded);
+
+        // Hidden rather than disabled when preview output is off. There is no second output to publish then, so every compile has
+        // already produced the real material and an Apply that could never do anything would only raise the question of what it is for.
+        m_actionApply->setVisible(MaterialGraphCompiler::IsPreviewOutputEnabled());
+        m_actionApply->setEnabled(isOpen && applyNeeded);
+
+        // Greying out is the indicator, in the same way it is in other material editors: enabled means the material in the level is
+        // behind the graph. The tooltip says which state this is, because a disabled item on its own reads as broken rather than as done.
+        m_actionApply->setToolTip(
+            applyNeeded ? tr("Rebuild the material for use outside Material Canvas. It is currently behind this graph.")
+                        : tr("The material outside Material Canvas is up to date with this graph."));
+    }
+
+    void MaterialCanvasMainWindow::OnCompileGraphCompleted(const AZ::Uuid& documentId)
+    {
+        if (documentId != GetCurrentDocumentId())
+        {
+            return;
+        }
+
+        // The menu only says this while it is open, so the state is also put somewhere permanently visible. This runs after the compile
+        // has finished reporting its own status, so it is not competing with those messages.
+        bool applyNeeded = false;
+        AtomToolsFramework::GraphDocumentRequestBus::EventResult(
+            applyNeeded, documentId, &AtomToolsFramework::GraphDocumentRequestBus::Events::IsApplyGraphNeeded);
+
+        if (MaterialGraphCompiler::IsPreviewOutputEnabled() && applyNeeded)
+        {
+            SetStatusWarning("Preview is current. The material outside Material Canvas is out of date -- File, Apply to rebuild it.");
+        }
+
+        QueueUpdateMenus(false);
     }
 
     void MaterialCanvasMainWindow::OnDocumentOpened(const AZ::Uuid& documentId)
@@ -172,6 +266,45 @@ namespace MaterialCanvas
                   "require clearing the cache to regenerate shaders for the new RHI.\n\nThe settings files containing the overrides will be "
                   "placed in the user/Registry folder for the current project.").toUtf8().constData(),
                   false),
+              AtomToolsFramework::CreateSettingsPropertyValue(
+                  "/O3DE/Atom/MaterialCanvas/EnablePreviewOnlyMaterialPipeline",
+                  tr("Use Preview-Only Material Pipeline").toUtf8().constData(),
+                  tr("An abstract material type is expanded into one shader per render pass, for every enabled material pipeline. With "
+                  "the default MainPipeline and LowEndPipeline, a Standard lighting model produces 21 shaders, and every one of them is "
+                  "rebuilt whenever the graph changes.\n\nThis option replaces both with a single trimmed pipeline that builds only the "
+                  "shaders the Material Canvas viewport actually draws with: depth, shadow, forward, and transparent. Four shaders "
+                  "instead of 21.\n\nThe cost is reduced fidelity for a few features while it is enabled. Per-pixel depth offset and "
+                  "alpha cutout fall back to un-offset depth and shadow silhouettes, tinted transparent materials do not draw, light "
+                  "culling gets less precise depth bounds for transparent surfaces, and there are no motion vectors for TAA or motion "
+                  "blur.\n\nThe pipeline is declared on each material type Material Canvas generates, so it applies to the graphs "
+                  "being edited and to nothing else in the project. It takes effect on the next compile; no restart is needed. Note that "
+                  "the generated material type is still the one other systems load, so while this is enabled that material carries "
+                  "preview shaders rather than production ones.").toUtf8().constData(),
+                  false),
+              AtomToolsFramework::CreateSettingsPropertyValue(
+                  "/O3DE/Atom/MaterialCanvas/EnableInMemoryPreviewMaterial",
+                  tr("Build Preview Material In Memory").toUtf8().constData(),
+                  tr("Builds the preview material inside Material Canvas instead of waiting for the Asset Processor to build it.\n\n"
+                  "Two of the four jobs an edit currently triggers, the material type final stage and the material builder, were "
+                  "measured at 300 ms and 268 ms of Asset Processor time for 16 ms and roughly 20 ms of actual work. The remainder "
+                  "is hashing, dependency fingerprinting, product copies and catalog updates around builders that barely do "
+                  "anything.\n\nNothing is reimplemented to skip them: CreateMaterialTypeAsset and MaterialAssetCreator are the same "
+                  "calls those builders make, so the preview material is built the same way, just here. The shader is still built by "
+                  "the Asset Processor and this depends on it, so whenever the shader is not ready yet the viewport falls back to "
+                  "the normal path and waits, exactly as before.\n\nRequires preview output to be enabled. Production materials are "
+                  "unaffected: this only changes how the viewport gets its preview.").toUtf8().constData(),
+                  false),
+              AtomToolsFramework::CreateSettingsPropertyValue(
+                  "/O3DE/Atom/MaterialCanvas/ProductionMaterialPipelines",
+                  tr("Production Material Pipelines").toUtf8().constData(),
+                  tr("Comma separated list of material pipelines the production material type is built through. Leave this empty to use "
+                  "every pipeline the project registers, which by default is MainPipeline and LowEndPipeline.\n\nThose two produce nearly "
+                  "identical shaders: for the same transparent Standard PBR material they measure 13,201 and 13,181 preprocessed lines, "
+                  "and 1,287 ms and 1,286 ms of azslc. A project with no low end target therefore pays for a second complete set of "
+                  "shaders on every save and never loads them. Setting this to \"MainPipeline\" removes that.\n\nThis affects the "
+                  "production output only; the preview set is unaffected. An unrecognised name is reported as a warning and the default "
+                  "list is used, so a mistake here costs a log line rather than a material that does not render.").toUtf8().constData(),
+                  AZStd::string("")),
               AtomToolsFramework::CreateSettingsPropertyValue(
                   "/O3DE/Atom/MaterialCanvas/ForceDeleteGeneratedFiles",
                   tr("Delete Files On Compile").toUtf8().constData(),
@@ -256,7 +389,14 @@ namespace MaterialCanvas
     void MaterialCanvasMainWindow::OnSettingsDialogClosed()
     {
         AtomToolsFramework::SetSettingsObject("/O3DE/Atom/GraphView/ViewSettings", m_graphViewSettingsPtr);
+
         Base::OnSettingsDialogClosed();
+
+        const AZ::IO::FixedMaxPath settingsFilePath(
+            AZStd::string::format("%s/user/Registry/usersettings.materialcanvas.setreg", AZ::Utils::GetProjectPath().c_str()));
+        AtomToolsFramework::SaveSettingsToFile(
+            settingsFilePath,
+            { "/O3DE/AtomToolsFramework", "/O3DE/Atom/Tools", "/O3DE/Atom/GraphView", "/O3DE/Atom/MaterialCanvas" });
     }
 
     AZStd::string MaterialCanvasMainWindow::GetHelpUrl() const
