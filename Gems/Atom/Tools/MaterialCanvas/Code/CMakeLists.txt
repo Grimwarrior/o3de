@@ -28,6 +28,7 @@ ly_add_target(
         ${pal_source_dir}/platform_${PAL_PLATFORM_NAME_LOWERCASE}_files.cmake
     PLATFORM_INCLUDE_FILES
         ${pal_source_dir}/tool_dependencies_${PAL_PLATFORM_NAME_LOWERCASE}.cmake
+        ${pal_source_dir}/shader_dependencies_${PAL_PLATFORM_NAME_LOWERCASE}.cmake
     INCLUDE_DIRECTORIES
         PRIVATE
             .
@@ -40,6 +41,10 @@ ly_add_target(
             Gem::CommonFeaturesAtom.Static
             Gem::AtomToolsFramework.Editor
             Gem::AtomToolsFramework.Static
+            # AzslCompiler and ShaderBuilderUtility, for the in-memory preview shader path. They live in a static library rather
+            # than only in the builder gem module, so a tool can call the same reflection code the Shader Asset Builder calls
+            # instead of reimplementing it and drifting from it.
+            Gem::AtomShader.Static
     RUNTIME_DEPENDENCIES
         Gem::AtomToolsFramework.Editor
 )
