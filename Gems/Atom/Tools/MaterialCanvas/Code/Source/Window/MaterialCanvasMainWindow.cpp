@@ -392,6 +392,11 @@ namespace MaterialCanvas
 
         Base::OnSettingsDialogClosed();
 
+        if (auto registry = AZ::SettingsRegistry::Get())
+        {
+            registry->Remove("/O3DE/Atom/MaterialCanvas/PaneWindowState");
+        }
+
         const AZ::IO::FixedMaxPath settingsFilePath(
             AZStd::string::format("%s/user/Registry/usersettings.materialcanvas.setreg", AZ::Utils::GetProjectPath().c_str()));
         AtomToolsFramework::SaveSettingsToFile(

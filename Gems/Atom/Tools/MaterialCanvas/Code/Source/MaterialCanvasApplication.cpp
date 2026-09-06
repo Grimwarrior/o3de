@@ -21,6 +21,7 @@
 #include <AzCore/Math/Vector3.h>
 #include <AzCore/Math/Vector4.h>
 #include <AzCore/RTTI/RTTI.h>
+#include <AzCore/Settings/SettingsRegistry.h>
 #include <AzCore/Utils/Utils.h>
 #include <AzCore/std/smart_ptr/make_shared.h>
 #include <Document/MaterialGraphCompiler.h>
@@ -122,6 +123,11 @@ namespace MaterialCanvas
     {
         // Save all of the graph view configuration settings to the settings registry.
         AtomToolsFramework::SetSettingsObject("/O3DE/Atom/GraphView/ViewSettings", m_graphViewSettingsPtr);
+
+        if (auto registry = AZ::SettingsRegistry::Get())
+        {
+            registry->Remove("/O3DE/Atom/MaterialCanvas/PaneWindowState");
+        }
 
         m_graphViewSettingsPtr.reset();
         m_window.reset();
