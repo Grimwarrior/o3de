@@ -82,6 +82,13 @@ namespace AzToolsFramework
         bool HasContents();
         void SetFilterString(AZStd::string filterString);
         void InvalidateAll(const char* filter = nullptr);
+        void SetDefaultRowExpandDepth(int depth);
+        // When positive, the property widgets are built a few ms at a time across event-loop turns (DPE only).
+        void SetIncrementalBuildBudgetMs(int budgetMs);
+        // Collapsed components don't build their widgets until expanded; only supported by the DPE-based editor.
+        bool SetContentSuspended(bool suspended);
+        // True while the widgets are being built because the card was just expanded.
+        bool IsBuildingContent() const { return m_isBuildingContent; }
         void QueuePropertyEditorInvalidation(PropertyModificationRefreshLevel refreshLevel);
         void QueuePropertyEditorInvalidationForComponent(AZ::EntityComponentIdPair entityComponentIdPair, PropertyModificationRefreshLevel refreshLevel);
         
@@ -174,6 +181,7 @@ namespace AzToolsFramework
         AZStd::shared_ptr<AZ::DocumentPropertyEditor::ValueStringFilter> m_filterAdapter;
         AZStd::shared_ptr<AZ::DocumentPropertyEditor::LabeledRowAggregateAdapter> m_aggregateAdapter;
         DocumentPropertyEditor* m_dpe = nullptr;
+        bool m_isBuildingContent = false;
 
         AZ::SerializeContext* m_serializeContext = nullptr;
 

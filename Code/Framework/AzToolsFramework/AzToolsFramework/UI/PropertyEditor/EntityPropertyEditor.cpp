@@ -19,6 +19,7 @@ AZ_POP_DISABLE_WARNING
 #include <AzCore/Component/TickBus.h>
 #include <AzCore/Component/TransformBus.h>
 #include <AzCore/Console/IConsole.h>
+#include <AzCore/std/chrono/chrono.h>
 #include <AzCore/Debug/Profiler.h>
 #include <AzCore/IO/FileIO.h>
 #include <AzCore/Serialization/SerializeContext.h>
@@ -145,6 +146,81 @@ namespace AzToolsFramework
         }
         return dpeEnabled;
     }
+
+    AZ_CVAR(
+        bool,
+        ed_logInspectorTimings,
+        false,
+        nullptr,
+        AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+        "If set, logs per-phase Entity Inspector rebuild timings to the Editor log.");
+
+    AZ_CVAR(
+        int,
+        ed_inspectorDefaultExpandDepth,
+        1,
+        nullptr,
+        AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+        "Inspector rows with no saved expander state start expanded only below this nesting depth (1 = top-level rows only, negative = all).");
+
+    AZ_CVAR(
+        int,
+        ed_inspectorBuildSliceMs,
+        50,
+        nullptr,
+        AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+        "Time budget in ms per event-loop turn when rebuilding inspector component editors; the rest is built on later turns (0 = build everything at once).");
+
+    AZ_CVAR(
+        bool,
+        ed_inspectorLazyBuild,
+        true,
+        nullptr,
+        AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+        "If set, the inspector only builds the components that are visible (plus some slack) and builds the rest as the user scrolls.");
+
+    AZ_CVAR(
+        bool,
+        ed_inspectorSkipCollapsedContent,
+        true,
+        nullptr,
+        AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+        "If set, collapsed inspector components don't build their property widgets until they are expanded.");
+
+    static int ElapsedMs(AZStd::chrono::steady_clock::time_point since)
+    {
+        return static_cast<int>(AZStd::chrono::duration_cast<AZStd::chrono::milliseconds>(AZStd::chrono::steady_clock::now() - since).count());
+    }
+
+    // Measures laps between calls; Lap() always returns the elapsed ms, Log() prints it only when ed_logInspectorTimings is set.
+    class InspectorLapTimer
+    {
+    public:
+        InspectorLapTimer()
+            : m_last(AZStd::chrono::steady_clock::now())
+        {
+        }
+
+        double Lap()
+        {
+            const auto now = AZStd::chrono::steady_clock::now();
+            const double ms = AZStd::chrono::duration_cast<AZStd::chrono::microseconds>(now - m_last).count() / 1000.0;
+            m_last = now;
+            return ms;
+        }
+
+        void Log(const char* label)
+        {
+            const double ms = Lap();
+            if (ed_logInspectorTimings)
+            {
+                AZ_Printf("InspectorTiming", "%s: %.2f ms\n", label, ms);
+            }
+        }
+
+    private:
+        AZStd::chrono::steady_clock::time_point m_last;
+    };
 
     //since component editors are spaced apart to make room for drop indicator,
     //giving drop logic simple buffer so drops between editors don't go to the bottom
@@ -621,6 +697,9 @@ namespace AzToolsFramework
 
         m_overlay = new EntityPropertyEditorOverlay(this, m_gui->m_componentListContents);
         UpdateOverlay();
+
+        // Builds components that were left unbuilt because they were off screen once the user scrolls near them.
+        connect(m_gui->m_componentList->verticalScrollBar(), &QScrollBar::valueChanged, this, &EntityPropertyEditor::OnComponentListScrolled);
 
         ToolsApplicationEvents::Bus::Handler::BusConnect();
         AZ::EntitySystemBus::Handler::BusConnect();
@@ -1247,6 +1326,12 @@ namespace AzToolsFramework
     void EntityPropertyEditor::UpdateContents()
     {
         AZ_PROFILE_FUNCTION(AzToolsFramework);
+        InspectorLapTimer timer;
+        const auto updateStart = AZStd::chrono::steady_clock::now();
+        if (ed_logInspectorTimings)
+        {
+            DPEBuildStats::Begin();
+        }
         setUpdatesEnabled(false);
 
         m_isBuildingProperties = true;
@@ -1256,6 +1341,7 @@ namespace AzToolsFramework
 
         ClearInstances(false);
         ClearComponentEditorDragging();
+        timer.Log("UpdateContents: clear old instances");
 
         m_selectedEntityIds.clear();
         GetSelectedEntities(m_selectedEntityIds);
@@ -1348,6 +1434,8 @@ namespace AzToolsFramework
                     selectionEntityTypeInfo == SelectionEntityTypeInfo::OnlyPrefabEntities) ||
                 selectionEntityTypeInfo == SelectionEntityTypeInfo::ContainerEntityOfFocusedPrefab);
 
+            timer.Log("UpdateContents: gather components");
+
             if (sharedComponentArray.size() == 0)
             {
                 // Don't display the search box if there were no common components.
@@ -1355,13 +1443,19 @@ namespace AzToolsFramework
             }
             else
             {
-                BuildSharedComponentUI(sharedComponentArray);
+                // Adding a component scrolls to it, which needs every editor built, so only slice other rebuilds.
+                BuildSharedComponentUI(sharedComponentArray, !m_shouldScrollToNewComponents);
             }
-
+            timer.Log("UpdateContents: build component editors (total)");
+            DPEBuildStats::Report();
 
             UpdateEntityIcon();
             UpdateEntityDisplay();
+            timer.Log("UpdateContents: entity icon and display");
         }
+
+        // Also covers the case where nothing was built, so the measurement never stays active.
+        DPEBuildStats::Report();
 
         m_gui->m_darkBox->setVisible(displayComponentSearchBox && !m_isSystemEntityEditor && !isLevelLayout || isPrefabLayout);
         m_gui->m_entitySearchBox->setVisible(displayComponentSearchBox);
@@ -1389,13 +1483,29 @@ namespace AzToolsFramework
 
         LoadComponentEditorState();
         UpdateInternalState();
+        timer.Log("UpdateContents: component state and internal state");
 
         layout()->update();
         layout()->activate();
+        timer.Log("UpdateContents: layout activate");
 
         m_isBuildingProperties = false;
 
         setUpdatesEnabled(true);
+
+        if (ed_logInspectorTimings)
+        {
+            // Fires once the event loop reaches this point, so it includes posted show, layout and paint work after the rebuild.
+            QTimer::singleShot(
+                0,
+                this,
+                [updateStart]()
+                {
+                    const auto elapsed = AZStd::chrono::duration_cast<AZStd::chrono::microseconds>(
+                        AZStd::chrono::steady_clock::now() - updateStart);
+                    AZ_Printf("InspectorTiming", "UpdateContents: start to next event-loop turn: %.2f ms\n", elapsed.count() / 1000.0);
+                });
+        }
 
         // re-enable all actions so that things like "delete" or "cut" work again
         QList<QAction*> actionList = actions();
@@ -1626,63 +1736,344 @@ namespace AzToolsFramework
         return false;
     }
 
-    void EntityPropertyEditor::BuildSharedComponentUI(SharedComponentArray& sharedComponentArray)
+    void EntityPropertyEditor::BuildSharedComponentUI(SharedComponentArray& sharedComponentArray, bool allowDeferral)
     {
         // last-known widget, for the sake of tab-ordering
         QWidget* lastTabWidget = m_gui->m_addComponentButton;
 
-        for (auto& sharedComponentInfo : sharedComponentArray)
+        const bool lazy = allowDeferral && ed_inspectorLazyBuild && m_filterString.empty();
+        const int sliceBudgetMs = allowDeferral ? ed_inspectorBuildSliceMs : 0;
+        const auto sliceStart = AZStd::chrono::steady_clock::now();
+
+        for (size_t index = 0; index < sharedComponentArray.size(); ++index)
         {
-            bool componentInFilter = ComponentMatchesCurrentFilter(sharedComponentInfo);
+            BuildComponentEditor(sharedComponentArray[index], lastTabWidget);
 
-            auto componentEditor = CreateComponentEditor();
+            const bool moreToBuild = index + 1 < sharedComponentArray.size();
+            if (!moreToBuild)
+            {
+                break;
+            }
 
-            // Add instances to componentEditor
-            auto& componentInstances = sharedComponentInfo.m_instances;
+            const bool outOfTime = sliceBudgetMs > 0 && ElapsedMs(sliceStart) > sliceBudgetMs;
+            const bool offscreen = lazy && GetBuiltContentHeight() >= GetLazyBuildTargetHeight();
+            if (outOfTime || offscreen)
+            {
+                // Remember the rest by id; they are built on later event-loop turns, or once the user scrolls near them.
+                m_deferredComponents.clear();
+                m_deferredNext = 0;
+                for (size_t rest = index + 1; rest < sharedComponentArray.size(); ++rest)
+                {
+                    auto& deferredIds = m_deferredComponents.emplace_back();
+                    for (const AZ::Component* instance : sharedComponentArray[rest].m_instances)
+                    {
+                        deferredIds.emplace_back(instance->GetEntityId(), instance->GetId());
+                    }
+                }
+                m_lazyBuildActive = lazy;
+                m_restoreScrollAfterDeferredBuild = m_savedVerticalScroll > 0;
+                UpdateDeferredPlaceholder();
+                if (!offscreen)
+                {
+                    ScheduleDeferredBuild();
+                }
+                return;
+            }
+        }
+    }
+
+    void EntityPropertyEditor::ScheduleDeferredBuild()
+    {
+        if (m_deferredBuildScheduled)
+        {
+            return;
+        }
+        m_deferredBuildScheduled = true;
+        QTimer::singleShot(0, this, [this, generation = m_buildGeneration]() { ContinueDeferredBuild(generation); });
+    }
+
+    int EntityPropertyEditor::GetBuiltContentHeight() const
+    {
+        const int spacing = m_gui->m_componentListContents->layout()->spacing();
+        int height = 0;
+        for (AZ::s32 index = 0; index < m_componentEditorsUsed; ++index)
+        {
+            const ComponentEditor* componentEditor = m_componentEditors[index];
+            if (!componentEditor->isHidden())
+            {
+                height += componentEditor->sizeHint().height() + spacing;
+            }
+        }
+        return height;
+    }
+
+    int EntityPropertyEditor::GetLazyBuildTargetHeight() const
+    {
+        // Build the viewport plus half a viewport of slack, and always as far down as the scroll position to be restored.
+        const QScrollBar* verticalScroll = m_gui->m_componentList->verticalScrollBar();
+        // The floor covers a pane that is hidden or not laid out yet, which would otherwise report a tiny viewport.
+        const int viewportHeight = AZStd::max(m_gui->m_componentList->viewport()->height(), 600);
+        return AZStd::max(verticalScroll->value(), m_savedVerticalScroll) + viewportHeight + viewportHeight / 2;
+    }
+
+    void EntityPropertyEditor::OnComponentListScrolled()
+    {
+        if (!m_lazyBuildActive || m_deferredBuildScheduled || m_isBuildingProperties || m_deferredNext >= m_deferredComponents.size())
+        {
+            return;
+        }
+
+        if (GetBuiltContentHeight() < GetLazyBuildTargetHeight())
+        {
+            ScheduleDeferredBuild();
+        }
+    }
+
+    void EntityPropertyEditor::UpdateDeferredPlaceholder()
+    {
+        const size_t remaining = m_deferredNext < m_deferredComponents.size() ? m_deferredComponents.size() - m_deferredNext : 0;
+        if (remaining == 0)
+        {
+            if (m_deferredPlaceholder)
+            {
+                m_deferredPlaceholder->hide();
+            }
+            return;
+        }
+
+        if (!m_deferredPlaceholder)
+        {
+            m_deferredPlaceholder = new QLabel(m_gui->m_componentListContents);
+            m_deferredPlaceholder->setAlignment(Qt::AlignCenter);
+            m_deferredPlaceholder->setEnabled(false);
+            QLayout* contentsLayout = m_gui->m_componentListContents->layout();
+            contentsLayout->removeItem(m_spacer);
+            contentsLayout->addWidget(m_deferredPlaceholder);
+            contentsLayout->addItem(m_spacer);
+        }
+
+        // Roughly one collapsed component header per remaining component, so the scroll bar reflects what is still to come.
+        constexpr int placeholderHeightPerComponent = 30;
+        m_deferredPlaceholder->setText(tr("%n more component(s), scroll to load", "", static_cast<int>(remaining)));
+        m_deferredPlaceholder->setFixedHeight(static_cast<int>(remaining) * placeholderHeightPerComponent);
+        m_deferredPlaceholder->show();
+    }
+
+    bool EntityPropertyEditor::BuildDeferredComponents(int budgetMs, bool stopWhenOffscreen)
+    {
+        QWidget* lastTabWidget = m_componentEditorsUsed > 0 ? static_cast<QWidget*>(m_componentEditors[m_componentEditorsUsed - 1])
+                                                            : static_cast<QWidget*>(m_gui->m_addComponentButton);
+        const auto sliceStart = AZStd::chrono::steady_clock::now();
+
+        while (m_deferredNext < m_deferredComponents.size())
+        {
+            if ((budgetMs >= 0 && ElapsedMs(sliceStart) > budgetMs) ||
+                (stopWhenOffscreen && GetBuiltContentHeight() >= GetLazyBuildTargetHeight()))
+            {
+                break;
+            }
+
+            AZ::Entity::ComponentArrayType instances;
+            for (const AZ::EntityComponentIdPair& idPair : m_deferredComponents[m_deferredNext])
+            {
+                AZ::EntityId entityId = idPair.GetEntityId();
+                AZ::Entity* entity = GetSelectedEntityById(entityId);
+                AZ::Component* component = entity && (m_isSystemEntityEditor || entity->GetState() == AZ::Entity::State::Active)
+                    ? entity->FindComponent(idPair.GetComponentId())
+                    : nullptr;
+                if (!component)
+                {
+                    return false;
+                }
+                instances.push_back(component);
+            }
+
+            if (instances.empty())
+            {
+                return false;
+            }
+
+            SharedComponentInfo sharedComponentInfo(instances.front());
+            sharedComponentInfo.m_instances = AZStd::move(instances);
+            ++m_deferredNext;
+            BuildComponentEditor(sharedComponentInfo, lastTabWidget);
+        }
+        return true;
+    }
+
+    void EntityPropertyEditor::ContinueDeferredBuild(AZ::u32 generation)
+    {
+        // A newer rebuild cleared the editors, or a full refresh is already queued and will rebuild everything.
+        if (generation != m_buildGeneration || m_isAlreadyQueuedRefresh)
+        {
+            return;
+        }
+        m_deferredBuildScheduled = false;
+
+        AZ_PROFILE_FUNCTION(AzToolsFramework);
+        setUpdatesEnabled(false);
+        m_isBuildingProperties = true;
+        const bool resolved = BuildDeferredComponents(ed_inspectorBuildSliceMs > 0 ? ed_inspectorBuildSliceMs : -1, m_lazyBuildActive);
+        m_isBuildingProperties = false;
+        setUpdatesEnabled(true);
+
+        if (!resolved)
+        {
+            // The entity changed under us; a full rebuild is the only safe way to get back to a consistent state.
+            m_deferredComponents.clear();
+            m_deferredNext = 0;
+            QueuePropertyRefresh();
+            return;
+        }
+
+        const bool moreToBuild = m_deferredNext < m_deferredComponents.size();
+        if (moreToBuild && !(m_lazyBuildActive && GetBuiltContentHeight() >= GetLazyBuildTargetHeight()))
+        {
+            ScheduleDeferredBuild();
+            return;
+        }
+
+        FinishDeferredBatch();
+    }
+
+    void EntityPropertyEditor::FinishDeferredBatch()
+    {
+        if (m_deferredNext >= m_deferredComponents.size())
+        {
+            m_deferredComponents.clear();
+            m_deferredNext = 0;
+        }
+
+        // Redo the steps of UpdateContents that depend on the set of editors that exist.
+        LoadComponentEditorState();
+        UpdateInternalState();
+        layout()->update();
+        layout()->activate();
+        UpdateDeferredPlaceholder();
+
+        if (m_restoreScrollAfterDeferredBuild)
+        {
+            m_restoreScrollAfterDeferredBuild = false;
+            if (!m_shouldScrollToNewComponentsQueued)
+            {
+                QTimer::singleShot(0, this, &EntityPropertyEditor::ScrollToNewComponent);
+                m_shouldScrollToNewComponentsQueued = true;
+            }
+        }
+    }
+
+    void EntityPropertyEditor::EnsureAllComponentEditorsBuilt()
+    {
+        if (m_deferredNext >= m_deferredComponents.size())
+        {
+            return;
+        }
+
+        setUpdatesEnabled(false);
+        m_isBuildingProperties = true;
+        const bool resolved = BuildDeferredComponents(-1, false);
+        m_isBuildingProperties = false;
+        setUpdatesEnabled(true);
+
+        if (!resolved)
+        {
+            m_deferredComponents.clear();
+            m_deferredNext = 0;
+            QueuePropertyRefresh();
+            return;
+        }
+        FinishDeferredBatch();
+    }
+
+    void EntityPropertyEditor::BuildComponentEditor(SharedComponentInfo& sharedComponentInfo, QWidget*& lastTabWidget)
+    {
+        InspectorLapTimer timer;
+        bool componentInFilter = ComponentMatchesCurrentFilter(sharedComponentInfo);
+
+        auto componentEditor = CreateComponentEditor();
+        const double createMs = timer.Lap();
+
+        // Add instances to componentEditor
+        auto& componentInstances = sharedComponentInfo.m_instances;
+        for (AZ::Component* componentInstance : componentInstances)
+        {
+            // non-first instances are aggregated under the first instance
+            AZ::Component* aggregateInstance = componentInstance != componentInstances.front() ? componentInstances.front() : nullptr;
+
+            componentEditor->AddInstance(componentInstance, aggregateInstance, nullptr);
+        }
+        const double addInstanceMs = timer.Lap();
+
+        // Set up other entity property editor customization
+        if (ShouldUseDPE() && Prefab::IsInspectorOverrideManagementEnabled())
+        {
+            // Set up visualization for overrides on the component
+            UpdateOverrideVisualization(*componentEditor);
+        }
+
+        // Set tab order for editor
+        setTabOrder(lastTabWidget, componentEditor);
+        lastTabWidget = componentEditor;
+
+        const double overridesMs = timer.Lap();
+
+        // Refresh editor
+        componentEditor->SetDefaultRowExpandDepth(ed_inspectorDefaultExpandDepth);
+        componentEditor->AddNotifications();
+        const double notificationsMs = timer.Lap();
+        componentEditor->UpdateExpandability();
+        const double expandabilityMs = timer.Lap();
+
+        // Build big components a few ms per event-loop turn instead of in one block; a search filter needs every row, so it opts out.
+        const int incrementalBudgetMs = (m_filterString.empty() && ed_inspectorBuildSliceMs > 0) ? AZStd::max(10, ed_inspectorBuildSliceMs / 2) : 0;
+        componentEditor->SetIncrementalBuildBudgetMs(incrementalBudgetMs);
+
+        // A collapsed component shows nothing, so skip building its widgets until it is expanded. A search filter needs the contents.
+        const bool suspendContent = ed_inspectorSkipCollapsedContent && !componentEditor->IsExpanded() && m_filterString.empty();
+        if (!componentEditor->SetContentSuspended(suspendContent) || !suspendContent)
+        {
+            componentEditor->InvalidateAll(!componentInFilter ? m_filterString.c_str() : nullptr);
+        }
+        const double invalidateMs = timer.Lap();
+
+        // If we are in read only mode, then show the components as disabled
+        if (m_selectionContainsReadOnlyEntity)
+        {
+            componentEditor->mockDisabledState(true);
+        }
+
+        if (componentEditor->HasContents())
+        {
             for (AZ::Component* componentInstance : componentInstances)
             {
-                // non-first instances are aggregated under the first instance
-                AZ::Component* aggregateInstance = componentInstance != componentInstances.front() ? componentInstances.front() : nullptr;
-
-                componentEditor->AddInstance(componentInstance, aggregateInstance, nullptr);
+                // Map the component to the editor
+                m_componentToEditorMap[componentInstance] = componentEditor;
             }
+            componentEditor->show();
+        }
+        else
+        {
+            componentEditor->hide();
+            componentEditor->ClearInstances(true);
+        }
+        const double showMs = timer.Lap();
 
-            // Set up other entity property editor customization
-            if (ShouldUseDPE() && Prefab::IsInspectorOverrideManagementEnabled())
-            {
-                // Set up visualization for overrides on the component
-                UpdateOverrideVisualization(*componentEditor);
-            }
-
-            // Set tab order for editor
-            setTabOrder(lastTabWidget, componentEditor);
-            lastTabWidget = componentEditor;
-
-            // Refresh editor
-            componentEditor->AddNotifications();
-            componentEditor->UpdateExpandability();
-            componentEditor->InvalidateAll(!componentInFilter ? m_filterString.c_str() : nullptr);
-
-            // If we are in read only mode, then show the components as disabled
-            if (m_selectionContainsReadOnlyEntity)
-            {
-                componentEditor->mockDisabledState(true);
-            }
-
-            if (componentEditor->HasContents())
-            {
-                for (AZ::Component* componentInstance : componentInstances)
-                {
-                    // Map the component to the editor
-                    m_componentToEditorMap[componentInstance] = componentEditor;
-                }
-                componentEditor->show();
-            }
-            else
-            {
-                componentEditor->hide();
-                componentEditor->ClearInstances(true);
-            }
+        if (ed_logInspectorTimings)
+        {
+            const AZStd::string componentName = GetFriendlyComponentName(sharedComponentInfo.m_instances.front());
+            AZ_Printf(
+                "InspectorTiming",
+                "  component '%s' widgets=%d: create=%.2f addInstance=%.2f overrides=%.2f notifications=%.2f expandability=%.2f "
+                "invalidateAll(build dom+widgets)=%.2f show=%.2f ms\n",
+                componentName.c_str(),
+                static_cast<int>(componentEditor->findChildren<QWidget*>().size()),
+                createMs,
+                addInstanceMs,
+                overridesMs,
+                notificationsMs,
+                expandabilityMs,
+                invalidateMs,
+                showMs);
         }
     }
 
@@ -1752,15 +2143,33 @@ namespace AzToolsFramework
 
             connect(componentEditor, &ComponentEditor::OnExpansionContractionDone, this, [this]()
                 {
+                    // Collapse All activates the layout once at the end instead of once per component.
+                    if (m_isBatchingExpansion)
+                    {
+                        return;
+                    }
                     setUpdatesEnabled(false);
                     layout()->update();
                     layout()->activate();
                     setUpdatesEnabled(true);
+
+                    // A card collapsing frees up room, which may bring unbuilt components into view.
+                    if (m_lazyBuildActive)
+                    {
+                        QTimer::singleShot(0, this, &EntityPropertyEditor::OnComponentListScrolled);
+                    }
                 });
 
-            // force Card resize when expansion state changes or when explicitly requested by OnSizeUpdateRequested
-            AzQtComponents::StyleHelpers::repolishWhenPropertyChanges(componentEditor, &ComponentEditor::OnExpansionContractionDone);
-            AzQtComponents::StyleHelpers::repolishWhenPropertyChanges(componentEditor, &ComponentEditor::OnSizeUpdateRequested);
+            // The card restyles its own header when it expands or collapses, so the component editor only needs itself refreshed here.
+            connect(componentEditor, &ComponentEditor::OnExpansionContractionDone, componentEditor, [componentEditor]()
+                {
+                    AzQtComponents::StyleHelpers::repolishWidget(componentEditor);
+                });
+            // The DPE emits this at the end of every rebuild; the widgets were just styled, so only restyle outside UpdateContents.
+            AzQtComponents::StyleHelpers::repolishWhenPropertyChanges(
+                componentEditor,
+                &ComponentEditor::OnSizeUpdateRequested,
+                [this, componentEditor]() { return m_isBuildingProperties || componentEditor->IsBuildingContent(); });
 
             connect(componentEditor, &ComponentEditor::OnDisplayComponentEditorMenu, this, &EntityPropertyEditor::OnDisplayComponentEditorMenu);
             connect(componentEditor, &ComponentEditor::OnRequestRequiredComponents, this, &EntityPropertyEditor::OnRequestRequiredComponents);
@@ -1795,7 +2204,16 @@ namespace AzToolsFramework
 
             //move spacer to bottom of editors
             m_gui->m_componentListContents->layout()->removeItem(m_spacer);
+            if (m_deferredPlaceholder)
+            {
+                // keep the placeholder after the last editor
+                m_gui->m_componentListContents->layout()->removeWidget(m_deferredPlaceholder);
+            }
             m_gui->m_componentListContents->layout()->addWidget(componentEditor);
+            if (m_deferredPlaceholder)
+            {
+                m_gui->m_componentListContents->layout()->addWidget(m_deferredPlaceholder);
+            }
             m_gui->m_componentListContents->layout()->addItem(m_spacer);
             m_gui->m_componentListContents->layout()->update();
 
@@ -2041,6 +2459,18 @@ namespace AzToolsFramework
         m_currentUndoOperation = nullptr;
         m_selectedEntityIds.clear();
         m_componentToEditorMap.clear();
+
+        // Drop any rebuild slices still waiting to run.
+        ++m_buildGeneration;
+        m_deferredComponents.clear();
+        m_deferredNext = 0;
+        m_deferredBuildScheduled = false;
+        m_lazyBuildActive = false;
+        m_restoreScrollAfterDeferredBuild = false;
+        if (m_deferredPlaceholder)
+        {
+            m_deferredPlaceholder->hide();
+        }
     }
 
     void EntityPropertyEditor::MarkPropertyEditorBusyStart()
@@ -3266,6 +3696,7 @@ namespace AzToolsFramework
 
     void EntityPropertyEditor::MoveComponentsUp()
     {
+        EnsureAllComponentEditorsBuilt();
         const auto& componentsToEdit = GetSelectedComponents();
         if (!AreComponentsRemovable(componentsToEdit))
         {
@@ -3294,6 +3725,7 @@ namespace AzToolsFramework
 
     void EntityPropertyEditor::MoveComponentsDown()
     {
+        EnsureAllComponentEditorsBuilt();
         const auto& componentsToEdit = GetSelectedComponents();
         if (!AreComponentsRemovable(componentsToEdit))
         {
@@ -4147,6 +4579,12 @@ namespace AzToolsFramework
     //overridden to intercept application level mouse events for component editor selection
     bool EntityPropertyEditor::eventFilter(QObject* object, QEvent* event)
     {
+        // The list grew (e.g. a pane below the inspector was closed), so build components that are now in view.
+        if (event->type() == QEvent::Resize && m_lazyBuildActive && object == m_gui->m_componentList->viewport())
+        {
+            QTimer::singleShot(0, this, &EntityPropertyEditor::OnComponentListScrolled);
+        }
+
         HandleMenuEvent(object, event);
         HandleSelectionEvents(object, event);
         return false;
@@ -5298,11 +5736,18 @@ namespace AzToolsFramework
     void EntityPropertyEditor::OnSearchTextChanged()
     {
         m_filterString = m_gui->m_entitySearchBox->text().toLatin1().data();
+        InspectorLapTimer timer;
+
+        // Drop the old widgets first: changing a filter makes its adapter patch the live tree (re-adding every filtered-out row),
+        // which would rebuild widgets that UpdateContents below throws away and builds again.
+        ClearInstances(false);
+        timer.Log("OnSearchTextChanged: clear old instances");
 
         for (auto componentEditor : m_componentEditors)
         {
             componentEditor->SetFilterString(m_filterString);
         }
+        timer.Log("OnSearchTextChanged: apply filter to editors");
 
         UpdateContents();
     }
@@ -5323,9 +5768,33 @@ namespace AzToolsFramework
 
     void EntityPropertyEditor::OnCollapseAll()
     {
+        // Each collapse would otherwise activate the whole inspector layout, so batch them and do it once.
+        setUpdatesEnabled(false);
+        m_isBatchingExpansion = true;
+
         for (auto componentEditor : m_componentEditors)
         {
             componentEditor->SetExpanded(false);
+        }
+
+        // Components that are not built yet just need their saved state set; they build collapsed, and cheaply, later.
+        for (size_t index = m_deferredNext; index < m_deferredComponents.size(); ++index)
+        {
+            for (const AZ::EntityComponentIdPair& idPair : m_deferredComponents[index])
+            {
+                EditorEntityInfoRequestBus::Event(
+                    idPair.GetEntityId(), &EditorEntityInfoRequestBus::Events::SetComponentExpanded, idPair.GetComponentId(), false);
+            }
+        }
+
+        m_isBatchingExpansion = false;
+        layout()->update();
+        layout()->activate();
+        setUpdatesEnabled(true);
+
+        if (m_lazyBuildActive)
+        {
+            QTimer::singleShot(0, this, &EntityPropertyEditor::OnComponentListScrolled);
         }
     }
 

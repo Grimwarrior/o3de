@@ -21,6 +21,11 @@
 #include <AzCore/Console/IConsole.h>
 #include <AzCore/Debug/Profiler.h>
 #include <AzCore/DOM/DomUtils.h>
+#include <AzCore/std/chrono/chrono.h>
+#include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/std/containers/vector.h>
+#include <AzCore/std/sort.h>
+#include <typeinfo>
 #include <AzFramework/DocumentPropertyEditor/PropertyEditorNodes.h>
 #include <AzFramework/DocumentPropertyEditor/PropertyEditorSystem.h>
 #include <AzQtComponents/Components/Widgets/CheckBox.h>
@@ -62,6 +67,112 @@ void DetachAndHide(T* widget)
 
 namespace AzToolsFramework
 {
+    namespace DPEBuildStats
+    {
+        struct Entry
+        {
+            double m_ms = 0.0;
+            int m_count = 0;
+        };
+
+        struct HandlerEntry
+        {
+            double m_createMs = 0.0;
+            double m_setValueMs = 0.0;
+            int m_count = 0;
+        };
+
+        static bool s_enabled = false;
+        static Entry s_dom, s_clear, s_rows, s_labels, s_handlerLookup, s_addColumn, s_tail;
+        // Heap-allocated only while a measurement is active; a file-static container would still hold allocations at module teardown.
+        static AZStd::unordered_map<AZStd::string, HandlerEntry>* s_handlers = nullptr;
+
+        static double NowMs()
+        {
+            return AZStd::chrono::duration_cast<AZStd::chrono::microseconds>(AZStd::chrono::steady_clock::now().time_since_epoch()).count() /
+                1000.0;
+        }
+
+        // Adds the scope's duration to an entry; does nothing unless Begin() was called.
+        class Scope
+        {
+        public:
+            explicit Scope(Entry& entry)
+                : m_entry(s_enabled ? &entry : nullptr)
+                , m_start(m_entry ? NowMs() : 0.0)
+            {
+            }
+
+            ~Scope()
+            {
+                if (m_entry)
+                {
+                    m_entry->m_ms += NowMs() - m_start;
+                    ++m_entry->m_count;
+                }
+            }
+
+        private:
+            Entry* m_entry;
+            double m_start;
+        };
+
+        void Begin()
+        {
+            s_enabled = true;
+            s_dom = s_clear = s_rows = s_labels = s_handlerLookup = s_addColumn = s_tail = Entry();
+            delete s_handlers;
+            s_handlers = new AZStd::unordered_map<AZStd::string, HandlerEntry>();
+        }
+
+        void Report()
+        {
+            if (!s_enabled)
+            {
+                return;
+            }
+            s_enabled = false;
+
+            AZ_Printf(
+                "InspectorTiming",
+                "  DPE build totals: dom=%.1f clear=%.1f rows=%.1f(x%d) labels=%.1f(x%d) handlerLookup=%.1f(x%d) addColumn=%.1f(x%d) "
+                "tail=%.1f ms\n",
+                s_dom.m_ms,
+                s_clear.m_ms,
+                s_rows.m_ms,
+                s_rows.m_count,
+                s_labels.m_ms,
+                s_labels.m_count,
+                s_handlerLookup.m_ms,
+                s_handlerLookup.m_count,
+                s_addColumn.m_ms,
+                s_addColumn.m_count,
+                s_tail.m_ms);
+
+            AZStd::vector<AZStd::pair<AZStd::string, HandlerEntry>> sorted(s_handlers->begin(), s_handlers->end());
+            delete s_handlers;
+            s_handlers = nullptr;
+            AZStd::sort(
+                sorted.begin(),
+                sorted.end(),
+                [](const auto& lhs, const auto& rhs)
+                {
+                    return lhs.second.m_createMs + lhs.second.m_setValueMs > rhs.second.m_createMs + rhs.second.m_setValueMs;
+                });
+            for (size_t index = 0; index < sorted.size() && index < 12; ++index)
+            {
+                const auto& [name, entry] = sorted[index];
+                AZ_Printf(
+                    "InspectorTiming",
+                    "    handler %s x%d: create=%.1f setValue=%.1f ms\n",
+                    name.c_str(),
+                    entry.m_count,
+                    entry.m_createMs,
+                    entry.m_setValueMs);
+            }
+        }
+    } // namespace DPEBuildStats
+
     DPELayout::DPELayout(QWidget* parent)
         : QHBoxLayout(parent)
         , m_depth(-1)
@@ -572,8 +683,12 @@ namespace AzToolsFramework
             if (IsExpanded())
             {
                 // create and add the row child to m_domOrderedChildren
-                auto newRow = DocumentPropertyEditor::GetRowPool()->GetInstance();
-                AddRowChild(newRow, domIndex);
+                DPERowWidget* newRow = nullptr;
+                {
+                    DPEBuildStats::Scope statsScope(DPEBuildStats::s_rows);
+                    newRow = DocumentPropertyEditor::GetRowPool()->GetInstance();
+                    AddRowChild(newRow, domIndex);
+                }
 
                 // if it's a row, recursively populate the children from the DOM array in the passed value
                 newRow->SetValueFromDom(childValue);
@@ -590,6 +705,7 @@ namespace AzToolsFramework
             QWidget* addedWidget = nullptr;
             if (childType == AZ::Dpe::GetNodeName<AZ::Dpe::Nodes::Label>())
             {
+                DPEBuildStats::Scope statsScope(DPEBuildStats::s_labels);
                 auto labelString = AZ::Dpe::Nodes::Label::Value.ExtractFromDomNode(childValue).value_or("");
                 auto label = DocumentPropertyEditor::GetLabelPool()->GetInstance();
                 label->SetText(QString::fromUtf8(labelString.data(), aznumeric_cast<int>(labelString.size())));
@@ -598,7 +714,11 @@ namespace AzToolsFramework
             }
             else if (childType == AZ::Dpe::GetNodeName<AZ::Dpe::Nodes::PropertyEditor>())
             {
-                auto handlerId = AZ::Interface<PropertyEditorToolsSystemInterface>::Get()->GetPropertyHandlerForNode(childValue);
+                PropertyEditorToolsSystemInterface::PropertyHandlerId handlerId;
+                {
+                    DPEBuildStats::Scope statsScope(DPEBuildStats::s_handlerLookup);
+                    handlerId = AZ::Interface<PropertyEditorToolsSystemInterface>::Get()->GetPropertyHandlerForNode(childValue);
+                }
 
                 addedWidget = GetDPE()->CreateWidgetForHandler(handlerId, childValue);
             }
@@ -1058,6 +1178,7 @@ namespace AzToolsFramework
         {
             return;
         }
+        DPEBuildStats::Scope statsScope(DPEBuildStats::s_addColumn);
         columnWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
         // search for an existing column sibling with a lower dom index
@@ -1254,8 +1375,9 @@ namespace AzToolsFramework
                 }
                 else
                 {
-                    // expander state is not explicitly set or saved anywhere, default to expanded
-                    SetExpanded(true);
+                    // expander state is not explicitly set or saved anywhere, default to expanded unless past the DPE's default depth
+                    const int defaultExpandDepth = rowDPE->GetDefaultExpandDepth();
+                    SetExpanded(defaultExpandDepth < 0 || m_depth < defaultExpandDepth);
                 }
             }
         }
@@ -1441,6 +1563,7 @@ namespace AzToolsFramework
         // Free the settings ptr which saves any in-memory settings to disk and replace it
         // with a default in-memory only settings object until a saved state key is specified
         m_dpeSettings.reset();
+        m_hasSavedStateKey = false;
         m_dpeSettings = AZStd::unique_ptr<AZ::DocumentPropertyEditor::ExpanderSettings>(m_adapter->CreateExpanderSettings(m_adapter.get()));
 
         // populate the view from the full adapter contents, just like a reset
@@ -1449,6 +1572,12 @@ namespace AzToolsFramework
 
     void DocumentPropertyEditor::Clear()
     {
+        // Rows that were still waiting to be built belong to the tree that is being dropped.
+        m_pendingContents = AZ::Dom::Value();
+        m_pendingNextRow = 0;
+        m_pendingRowCount = 0;
+        ++m_pendingGeneration;
+
         m_dirtyHandlers.clear();
         if (ShouldUseWidgetPooling())
         {
@@ -1570,6 +1699,12 @@ namespace AzToolsFramework
 
     void DocumentPropertyEditor::SetSavedStateKey(AZ::u32 key, AZStd::string propertyEditorName)
     {
+        // Same key as the settings already loaded: skip the settings file save and reload.
+        if (m_dpeSettings && m_hasSavedStateKey && m_savedStateKey == key && m_savedStateName == propertyEditorName)
+        {
+            return;
+        }
+
         // We need to append some alphabetical characters to the key or it will be treated as a very large json array index
         AZStd::string keyStr = AZStd::string::format("uuid%s", AZStd::to_string(key).c_str());
         // Free the settings ptr before creating a new one. If the registry key is the same, we want
@@ -1578,6 +1713,9 @@ namespace AzToolsFramework
         m_dpeSettings.reset();
         m_dpeSettings = AZStd::unique_ptr<AZ::DocumentPropertyEditor::ExpanderSettings>(
             m_adapter->CreateExpanderSettings(m_adapter.get(), keyStr, propertyEditorName));
+        m_hasSavedStateKey = true;
+        m_savedStateKey = key;
+        m_savedStateName = propertyEditorName;
 
         if (m_dpeSettings && m_dpeSettings->WereSettingsLoaded())
         {
@@ -1588,7 +1726,11 @@ namespace AzToolsFramework
 
     void DocumentPropertyEditor::ClearInstances()
     {
-        m_dpeSettings.reset();
+        // Keep keyed settings alive across clears; they are saved on key change or destruction, not on every inspector rebuild.
+        if (!m_hasSavedStateKey)
+        {
+            m_dpeSettings.reset();
+        }
         Clear();
     }
 
@@ -1635,6 +1777,7 @@ namespace AzToolsFramework
 
         if (m_rootNode)
         {
+            FlushPendingRows();
             applyFilterRecursively(m_rootNode, applyFilterRecursively);
             update(); // Need to redraw for the linting to be applied
         }
@@ -1705,6 +1848,11 @@ namespace AzToolsFramework
 
     void DocumentPropertyEditor::ExpandAll()
     {
+        if (!m_rootNode)
+        {
+            return;
+        }
+        FlushPendingRows();
         for (auto child : m_rootNode->m_domOrderedChildren)
         {
             // all direct children of the root are rows
@@ -1715,6 +1863,11 @@ namespace AzToolsFramework
 
     void DocumentPropertyEditor::CollapseAll()
     {
+        if (!m_rootNode)
+        {
+            return;
+        }
+        FlushPendingRows();
         for (auto child : m_rootNode->m_domOrderedChildren)
         {
             // all direct children of the root are rows
@@ -1819,10 +1972,43 @@ namespace AzToolsFramework
         m_isRecursiveExpansionOngoing = isExpanding;
     }
 
+    void DocumentPropertyEditor::SetBuildSuspended(bool suspended)
+    {
+        if (m_buildSuspended == suspended)
+        {
+            return;
+        }
+        m_buildSuspended = suspended;
+        if (suspended || !m_adapter)
+        {
+            return;
+        }
+
+        // Resuming: run the reset that was queued or skipped while suspended, exactly once.
+        m_executeQueuedResetAlreadyQueued = false;
+        m_resetWhileSuspended = false;
+        m_adapter->ExecuteQueuedReset();
+        if (!m_rootNode)
+        {
+            HandleReset();
+        }
+    }
+
     void DocumentPropertyEditor::HandleReset()
     {
+        if (m_buildSuspended)
+        {
+            // Nothing is shown, so drop the old widgets and build when resumed.
+            Clear();
+            m_resetWhileSuspended = true;
+            return;
+        }
+
         // clear any pre-existing DPERowWidgets
-        Clear();
+        {
+            DPEBuildStats::Scope statsScope(DPEBuildStats::s_clear);
+            Clear();
+        }
 
         // invisible root node has a "depth" of -1; its children are all at indent 0
         m_rootNode = m_rowPool->GetInstance();
@@ -1830,24 +2016,95 @@ namespace AzToolsFramework
         m_rootNode->setParent(this);
         m_rootNode->hide();
 
-        auto topContents = m_adapter->GetContents();
-
-        for (size_t arrayIndex = 0, numIndices = topContents.ArraySize(); arrayIndex < numIndices; ++arrayIndex)
+        AZ::Dom::Value topContents;
         {
-            auto& rowValue = topContents[arrayIndex];
+            DPEBuildStats::Scope statsScope(DPEBuildStats::s_dom);
+            topContents = m_adapter->GetContents();
+        }
+
+        // Every reset used to add another stretch without removing the old one, so the layout grew by one spacer per rebuild.
+        for (int itemIndex = m_layout->count() - 1; itemIndex >= 0; --itemIndex)
+        {
+            if (m_layout->itemAt(itemIndex)->spacerItem())
+            {
+                delete m_layout->takeAt(itemIndex);
+            }
+        }
+        // The stretch goes in first; rows are always inserted before it.
+        m_layout->addStretch();
+
+        m_pendingContents = topContents;
+        m_pendingNextRow = 0;
+        m_pendingRowCount = topContents.ArraySize();
+        BuildPendingRows(false);
+    }
+
+    void DocumentPropertyEditor::BuildPendingRows(bool isContinuation)
+    {
+        const auto buildStart = AZStd::chrono::steady_clock::now();
+
+        while (m_pendingNextRow < m_pendingRowCount)
+        {
+            const size_t arrayIndex = m_pendingNextRow++;
+            auto& rowValue = m_pendingContents[arrayIndex];
             auto domName = rowValue.GetNodeName().GetStringView();
             const bool isRow = (domName == AZ::DocumentPropertyEditor::Nodes::Row::Name);
             AZ_Assert(isRow, "adapters must only have rows as direct children!");
 
             if (isRow)
             {
-                m_rootNode->AddChildFromDomValue(topContents[arrayIndex], arrayIndex);
+                m_rootNode->AddChildFromDomValue(rowValue, arrayIndex);
+            }
+
+            const auto elapsedMs = AZStd::chrono::duration_cast<AZStd::chrono::milliseconds>(AZStd::chrono::steady_clock::now() - buildStart);
+            if (m_incrementalBuildBudgetMs > 0 && m_pendingNextRow < m_pendingRowCount && elapsedMs.count() > m_incrementalBuildBudgetMs)
+            {
+                break;
             }
         }
-        m_layout->addStretch();
-        UpdateDirtyHandlers();
-        updateGeometry();
-        emit RequestSizeUpdate();
+
+        {
+            DPEBuildStats::Scope statsScope(DPEBuildStats::s_tail);
+            UpdateDirtyHandlers();
+            updateGeometry();
+            // Later chunks only add fresh widgets, so they must not trigger the owner's restyle-everything response to this signal.
+            if (!isContinuation)
+            {
+                emit RequestSizeUpdate();
+            }
+        }
+
+        if (m_pendingNextRow < m_pendingRowCount)
+        {
+            QTimer::singleShot(
+                0,
+                this,
+                [this, generation = m_pendingGeneration]()
+                {
+                    if (generation == m_pendingGeneration && m_rootNode)
+                    {
+                        BuildPendingRows(true);
+                    }
+                });
+        }
+        else
+        {
+            m_pendingContents = AZ::Dom::Value();
+            m_pendingRowCount = 0;
+            m_pendingNextRow = 0;
+        }
+    }
+
+    void DocumentPropertyEditor::FlushPendingRows()
+    {
+        if (m_rootNode && m_pendingNextRow < m_pendingRowCount)
+        {
+            // Anything that touches the tree by DOM path needs every row to exist, so finish building now.
+            const int budget = m_incrementalBuildBudgetMs;
+            m_incrementalBuildBudgetMs = 0;
+            BuildPendingRows(true);
+            m_incrementalBuildBudgetMs = budget;
+        }
     }
 
     void DocumentPropertyEditor::HandleDomChange(const AZ::Dom::Patch& patch)
@@ -1863,6 +2120,7 @@ namespace AzToolsFramework
 
         if (m_rootNode)
         {
+            FlushPendingRows();
             bool needsReset = false;
             for (auto operationIterator = patch.begin(), endIterator = patch.end(); !needsReset && operationIterator != endIterator;
                  ++operationIterator)
@@ -2091,8 +2349,17 @@ namespace AzToolsFramework
             // the registration is needed in case the handler pool is released by other DPE views
             RegisterHandlerPool(handlerName, handlerPool);
 
+            const double createStart = DPEBuildStats::s_enabled ? DPEBuildStats::NowMs() : 0.0;
             auto handler = handlerPool->GetInstance();
+            const double setValueStart = DPEBuildStats::s_enabled ? DPEBuildStats::NowMs() : 0.0;
             handler->SetValueFromDom_Internal(domValue, this);
+            if (DPEBuildStats::s_enabled && DPEBuildStats::s_handlers)
+            {
+                auto& handlerStats = (*DPEBuildStats::s_handlers)[typeid(*handler).name()];
+                handlerStats.m_createMs += setValueStart - createStart;
+                handlerStats.m_setValueMs += DPEBuildStats::NowMs() - setValueStart;
+                ++handlerStats.m_count;
+            }
             createdWidget = handler->GetWidget();
             createdWidget->setEnabled(true);
         }

@@ -33,8 +33,8 @@ namespace AzToolsFramework::Prefab
             s_sharedEmptyIcon = m_emptyIcon;
         }
 
+        // The bold rule for overridden="true" lives in BaseStyleSheet.qss; a per-label style sheet is very slow with hundreds of labels.
         m_textLabel->setProperty(OverriddenPropertyName, false);
-        m_textLabel->setStyleSheet(QString("[%1=\"true\"] { font-weight: bold }").arg(OverriddenPropertyName));
 
         QHBoxLayout* layout = new QHBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
