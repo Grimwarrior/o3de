@@ -20,6 +20,12 @@
     font-weight: 400;
 }
 
+/* Prefab override labels in the Entity Inspector (PrefabOverrideLabelHandler sets the "overridden" property) */
+QLabel[overridden="true"]
+{
+    font-weight: bold;
+}
+
 QTableView,
 QListView,
 QTreeView

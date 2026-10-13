@@ -34,6 +34,13 @@ namespace AzToolsFramework
     class DocumentPropertyEditor;
     class DPERowWidget;
 
+    //! Diagnostic accounting of where DPE widget builds spend their time; Begin() starts and resets it, Report() logs and stops it.
+    namespace DPEBuildStats
+    {
+        AZTF_API void Begin();
+        AZTF_API void Report();
+    } // namespace DPEBuildStats
+
     class AZTF_API DPELayout : public QHBoxLayout
     {
         Q_OBJECT
@@ -202,6 +209,17 @@ namespace AzToolsFramework
          *  to make the DPE arbitrarily narrow. */
         void SetEnforceMinWidth(bool enforceMinWidth);
 
+        //! Rows with no saved state and no AutoExpand attribute start expanded only if their depth is below this value; negative expands all.
+        void SetDefaultExpandDepth(int depth) { m_defaultExpandDepth = depth; }
+        int GetDefaultExpandDepth() const { return m_defaultExpandDepth; }
+
+        //! When positive, a reset builds top-level rows for about this many ms per event-loop turn and builds the rest on later turns.
+        void SetIncrementalBuildBudgetMs(int budgetMs) { m_incrementalBuildBudgetMs = budgetMs; }
+
+        //! While suspended, resets drop the widgets instead of building them (e.g. for a collapsed card); resuming builds them.
+        void SetBuildSuspended(bool suspended);
+        bool IsBuildSuspended() const { return m_buildSuspended; }
+
         auto GetAdapter()
         {
             return m_adapter;
@@ -316,6 +334,21 @@ namespace AzToolsFramework
         bool m_enforceMinWidth = true;
 
         AZStd::unique_ptr<AZ::DocumentPropertyEditor::ExpanderSettings> m_dpeSettings;
+        int m_defaultExpandDepth = -1;
+        bool m_buildSuspended = false;
+        bool m_resetWhileSuspended = false;
+
+        // Top-level rows of the last reset that have not been built yet when incremental building is on.
+        int m_incrementalBuildBudgetMs = 0;
+        AZ::Dom::Value m_pendingContents;
+        size_t m_pendingNextRow = 0;
+        size_t m_pendingRowCount = 0;
+        AZ::u32 m_pendingGeneration = 0;
+        void BuildPendingRows(bool isContinuation);
+        void FlushPendingRows();
+        bool m_hasSavedStateKey = false;
+        AZ::u32 m_savedStateKey = 0;
+        AZStd::string m_savedStateName;
         bool m_isRecursiveExpansionOngoing = false;
         bool m_spawnDebugView = false;
 

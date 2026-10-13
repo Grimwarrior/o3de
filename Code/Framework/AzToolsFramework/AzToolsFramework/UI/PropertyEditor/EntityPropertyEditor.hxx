@@ -284,7 +284,17 @@ namespace AzToolsFramework
 
         void GetAllComponentsForEntityInOrder(const AZ::Entity* entity, AZ::Entity::ComponentArrayType& componentsOnEntity);
         void BuildSharedComponentArray(SharedComponentArray& sharedComponentArray, bool containsLayerEntity);
-        void BuildSharedComponentUI(SharedComponentArray& sharedComponentArray);
+        void BuildSharedComponentUI(SharedComponentArray& sharedComponentArray, bool allowDeferral);
+        void BuildComponentEditor(SharedComponentInfo& sharedComponentInfo, QWidget*& lastTabWidget);
+        void ContinueDeferredBuild(AZ::u32 generation);
+        void BuildDeferredComponents(int budgetMs, bool stopWhenOffscreen);
+        void FinishDeferredBatch();
+        void EnsureAllComponentEditorsBuilt();
+        void ScheduleDeferredBuild();
+        void OnComponentListScrolled();
+        void UpdateDeferredPlaceholder();
+        int GetBuiltContentHeight() const;
+        int GetLazyBuildTargetHeight() const;
         bool ComponentMatchesCurrentFilter(SharedComponentInfo& sharedComponentInfo) const;
         ComponentEditor* CreateComponentEditor();
         void UpdateEntityIcon();
@@ -573,6 +583,22 @@ namespace AzToolsFramework
         AZ::s32 m_componentEditorLastSelectedIndex;
         AZ::s32 m_componentEditorsUsed;
         ComponentEditorVector m_componentEditors;
+
+        // Components still waiting for an editor after a time-sliced rebuild, stored as ids because pointers can go stale between slices.
+        AZStd::vector<AZStd::vector<AZ::EntityComponentIdPair>> m_deferredComponents;
+        size_t m_deferredNext = 0;
+        // True when the remaining components wait for the user to scroll near them instead of building on a timer.
+        bool m_lazyBuildActive = false;
+        // Set while Collapse All runs so the per-component layout activation happens once at the end.
+        bool m_isBatchingExpansion = false;
+        // Set while a selection change clears the search text, whose textChanged would otherwise rebuild the inspector.
+        bool m_isClearingSearchForSelection = false;
+        bool m_deferredBuildScheduled = false;
+        bool m_restoreScrollAfterDeferredBuild = false;
+        // Stands in for the unbuilt components so the scroll area keeps their extent.
+        QLabel* m_deferredPlaceholder = nullptr;
+        // Bumped whenever the editors are cleared; a queued slice carrying an older value is dropped.
+        AZ::u32 m_buildGeneration = 0;
 
         using ComponentPropertyEditorMap = AZStd::unordered_map<AZ::Component*, ComponentEditor*>;
         ComponentPropertyEditorMap m_componentToEditorMap;

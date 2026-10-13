@@ -1,0 +1,122 @@
+Material Canvas: preview now updates in 0.8-1.2 s instead of 1.8 s
+
+Two different clocks, measured separately. The Asset Processor's preview shader
+job goes from 0.869 s to 0.530 s. The time between editing a graph node and the
+preview updating goes from about 1.8 s to 0.8-1.2 s by stopwatch, the spread
+being mostly azslc and dxc varying with what else the machine is doing. The full
+measurement record, including the changes that were tried and rejected and the
+traps that cost time to find, is in z_PREVIEW_PERFORMANCE.md.
+
+AZSLc: two-stage SLL parsing (-136 ms)
+
+  Main.cpp parses with PredictionMode::SLL and falls back to LL only when the
+  SLL pass reports a syntax error. The error listener is attached after that
+  decision, because AzslParserEventListener::syntaxError throws and the
+  translation unit is built with _HAS_EXCEPTIONS=0.
+
+  SLL only succeeds because of the grammar change: idExpression now tries
+  qualifiedId before unqualifiedId, removing the ambiguity that forced
+  full-context prediction. azslParser.cpp/.h are regenerated from the .g4.
+
+DX12 builders: overlap the two dxc invocations (-91 ms)
+
+  ShaderPlatformInterface wrote every entry point's intermediates to the same
+  paths, so the vertex and pixel compiles could not run at once. They are now
+  per entry point, and ShaderVariantAssetBuilder compiles them on threads while
+  consuming the results in sorted order so the output stays deterministic. Two
+  bugs surfaced on the way: outputByproducts.emplace() silently dropped the
+  second entry point's byproducts, and the byproduct map was iterated in hash
+  order.
+
+A GUI process pays for a console on every child it spawns
+
+  ExecuteShaderCompiler asked for m_showWindow = true. A console process
+  launched from a parent that has no console of its own is given a new one,
+  which on current Windows means spawning conhost.exe beside it -- about
+  350-440 ms per child. An AssetBuilder is itself a console application and
+  pays none of it, which is why only the in-process path looked slow.
+  ProcessWatcher_Win now maps "no window" to CREATE_NO_WINDOW as well as
+  SW_HIDE, since hiding a console does not stop it existing.
+
+  Also fixes ExecuteShaderCompiler resolving the shader source folder with
+  GetFileName instead of GetFullPath.
+
+In-memory preview shaders
+
+  InMemoryShaderCompiler compiles the preview shader inside the Material Canvas
+  process -- MCPP, azslc, dxc and dxsc, then ShaderVariantAssetCreator and
+  ShaderAssetCreator::Clone -- and the viewport swaps the result into the
+  material type through ReinitializeAsset, which is why that is now public.
+  Cloning preserves the asset id, so the swap either replaces the Asset
+  Processor's shader with an identical-but-fresher one or does nothing.
+
+  Requests are collected from both GetGeneralShaderCollection() and every
+  GetMaterialPipelinePayloads() payload. A preview material type keeps its
+  shaders in the payloads and its general collection is empty, which is what
+  made an earlier version return zero requests.
+
+  ShaderSourceData gains SkipIncludeFileDependencies, set on the ten preview
+  templates, so editing the graph's generated azsli no longer has the Asset
+  Processor rebuild the same shader alongside the in-process compile. The
+  viewport takes on responsibility for rebuilding in exchange, and calls
+  ClearFingerprintForAsset whenever it cannot produce the shader itself.
+
+Graph compile: stop waiting for jobs nothing is waiting on (-450 to -580 ms)
+
+  ReportGeneratedFileStatus blocked on the Asset Processor for every file the
+  compile generated. A typical edit rewrites only the generated azsli; the
+  material type and the shaders come out byte for byte identical, and the jobs
+  the Asset Processor runs rebuild them into an intermediate identical to the
+  one already on disk. MaterialGraphCompiler now records which generated files
+  actually changed and reports only those. A compile that genuinely rewrites a
+  material type or shader still waits.
+
+  Adds GraphDocumentNotificationBus::OnCompileGraphProcessing, raised where the
+  compiler enters State::Processing with the generated files already written,
+  so a listener that only needs those files can start there instead of at
+  completion. The viewport starts its shader compile from it.
+
+Viewport: do not build a material around a shader that is about to be replaced
+(-300 ms)
+
+  With the wait gone, OnCompileGraphCompleted now fires a few hundred
+  milliseconds before the in-memory shader is ready. Applying there built an
+  entire material -- instance, property overrides, pipeline state -- around the
+  previous edit's shader, only to rebuild it moments later, and occupied the
+  main thread at exactly the moment the real result landed. The apply is
+  deferred while a compile is in flight. The compile job queues one when it
+  finishes whether or not it produced anything, so this is a deferral rather
+  than a decision not to apply.
+
+GetSymbolNameFromText compiled seven regular expressions per call (-200 ms)
+
+  It is called once per node and twice per slot while instructions are
+  gathered, for every instruction block in every template, and its patterns are
+  compile-time constants. They are static const now. Material graph instruction
+  generation goes from 247-301 ms to 68-78 ms. GetDisplayNameFromText had the
+  same shape and got the same treatment. Both are in AtomToolsFramework, so
+  this applies to Material Editor, Pass Canvas and Shader Management Console as
+  well as the preview.
+
+Build
+
+  MaterialCanvas links Atom_RHI_DX12.Builders.Static through new per-platform
+  shader_dependencies_*.cmake files, and the DX12 builders target now exports
+  its Source directory.
+
+Docs
+
+  z_PREVIEW_PERFORMANCE.md carries the measurements, the rejected changes and
+  the traps -- including a correction to an earlier conclusion that shader
+  assets are never reloaded in this process, which rested on reading a shader
+  collection that is empty for preview material types. The preview
+  ShaderTemplates README documents the fourth template field and who owns
+  rebuilding once it is set.
+
+  The timers behind the per-phase figures are not in the tree.
+  z_preview_instrument.py adds and removes them on demand -- graph compile, its
+  phase split, the in-process shader compile, when the apply ran, and slow
+  system ticks. Each probe is an exact before/after text pair, so a revert
+  restores the original bytes and drift fails loudly rather than half-applying.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

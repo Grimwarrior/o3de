@@ -165,6 +165,53 @@ namespace EMStudio
         return m_activeGraph;
     }
 
+    bool NodeGraphWidget::GetNeedsRedraw() const
+    {
+        if (m_redrawRequested || m_activeGraph != m_paintedGraph)
+        {
+            return true;
+        }
+
+        return m_activeGraph && (m_activeGraph->GetScrollOffset() != m_paintedScrollOffset || m_activeGraph->GetScale() != m_paintedScale);
+    }
+
+    bool NodeGraphWidget::GetHasLiveContent() const
+    {
+        // An anim graph instance changes active states, blend weights and condition results every frame.
+        return m_activeGraph && m_activeGraph->GetModelIndex().data(AnimGraphModel::ROLE_ANIM_GRAPH_INSTANCE).value<EMotionFX::AnimGraphInstance*>() != nullptr;
+    }
+
+    bool NodeGraphWidget::event(QEvent* event)
+    {
+        // Any input can change hover, selection or the view, so repaint on the next frame.
+        switch (event->type())
+        {
+        case QEvent::MouseMove:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::Wheel:
+        case QEvent::KeyPress:
+        case QEvent::KeyRelease:
+        case QEvent::FocusIn:
+        case QEvent::FocusOut:
+        case QEvent::Enter:
+        case QEvent::Leave:
+        case QEvent::Resize:
+        case QEvent::Show:
+        case QEvent::DragEnter:
+        case QEvent::DragMove:
+        case QEvent::DragLeave:
+        case QEvent::Drop:
+            m_redrawRequested = true;
+            break;
+        default:
+            break;
+        }
+
+        return QWidget::event(event);
+    }
+
     void NodeGraphWidget::paintEvent(QPaintEvent* event)
     {
         QWidget::paintEvent(event);
@@ -176,6 +223,14 @@ namespace EMStudio
         if (PreparePainting() == false)
         {
             return;
+        }
+
+        m_redrawRequested = false;
+        m_paintedGraph = m_activeGraph;
+        if (m_activeGraph)
+        {
+            m_paintedScrollOffset = m_activeGraph->GetScrollOffset();
+            m_paintedScale = m_activeGraph->GetScale();
         }
 
         // calculate the time passed since the last render
@@ -459,6 +514,19 @@ namespace EMStudio
                                 transition->GetVisualEndOffsetX(), transition->GetVisualEndOffsetY());
                         }
                     }
+                }
+            }
+
+            // check if we are dragging a transition waypoint
+            if (m_activeGraph->GetIsRepositioningWaypoint())
+            {
+                NodeConnection* connection = m_activeGraph->GetRepositionedWaypointConnection();
+                EMotionFX::AnimGraphStateTransition* transition = connection->GetModelIndex().data(AnimGraphModel::ROLE_TRANSITION_POINTER).value<EMotionFX::AnimGraphStateTransition*>();
+                if (transition)
+                {
+                    const QPoint snappedPos = SnapLocalToGrid(globalPos);
+                    transition->SetWaypoint(m_activeGraph->GetRepositionedWaypointIndex(),
+                        AZ::Vector2(aznumeric_cast<float>(snappedPos.x()), aznumeric_cast<float>(snappedPos.y())));
                 }
             }
 
@@ -839,6 +907,17 @@ namespace EMStudio
                             m_activeGraph->StartReplaceTransitionTail(stateConnection, startOffset, endOffset, stateConnection->GetSourceNode(), stateConnection->GetTargetNode());
                             return;
                         }
+
+                        const size_t waypointIndex = stateConnection->FindWaypoint(globalPos);
+                        if (!stateConnection->GetIsWildcardTransition() && waypointIndex != InvalidIndex)
+                        {
+                            m_moveNode = nullptr;
+                            m_panning = false;
+                            m_rectSelecting = false;
+
+                            m_activeGraph->StartRepositionWaypoint(stateConnection, waypointIndex, transition->GetWaypoints());
+                            return;
+                        }
                     }
                 }
             }
@@ -1169,6 +1248,20 @@ namespace EMStudio
                 }
 
                 m_activeGraph->StopRelinkConnection();
+                m_leftMousePressed = false;
+                UpdateMouseCursor(mousePos, globalPos);
+                return;
+            }
+
+            // in case we dragged a transition waypoint
+            if (m_activeGraph->GetIsRepositioningWaypoint())
+            {
+                NodeConnection* connection = m_activeGraph->GetRepositionedWaypointConnection();
+                const AZStd::vector<AZ::Vector2> oldWaypoints = m_activeGraph->GetRepositionedWaypointOldValues();
+                m_activeGraph->StopRepositionWaypoint();
+
+                CommitTransitionWaypoints(connection, oldWaypoints);
+
                 m_leftMousePressed = false;
                 UpdateMouseCursor(mousePos, globalPos);
                 return;
@@ -1614,6 +1707,12 @@ namespace EMStudio
         AZ_UNUSED(targetIsInputPort);
         AZ_UNUSED(startOffset);
         AZ_UNUSED(endOffset);
+    }
+
+    void NodeGraphWidget::CommitTransitionWaypoints(NodeConnection* connection, const AZStd::vector<AZ::Vector2>& oldWaypoints)
+    {
+        AZ_UNUSED(connection);
+        AZ_UNUSED(oldWaypoints);
     }
 
     void NodeGraphWidget::ReplaceTransition(NodeConnection* connection, QPoint oldStartOffset, QPoint oldEndOffset,

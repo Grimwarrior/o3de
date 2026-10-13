@@ -949,24 +949,37 @@ namespace EMStudio
     // timer event
     void AnimGraphPlugin::ProcessFrame(float timePassedInSeconds)
     {
-        if (GetManager()->GetAvoidRendering() || !m_graphWidget || m_graphWidget->visibleRegion().isEmpty())
+        if (GetManager()->GetAvoidRendering() || !m_graphWidget)
+        {
+            return;
+        }
+
+        // Node views such as the blend space editor replace the graph canvas, so they tick while it is hidden.
+        for (AnimGraphPerFrameCallback* callback : m_perFrameCallbacks)
+        {
+            callback->ProcessFrame(timePassedInSeconds);
+        }
+
+        if (m_graphWidget->visibleRegion().isEmpty())
         {
             return;
         }
 
         m_totalTime += timePassedInSeconds;
 
-        for (AnimGraphPerFrameCallback* callback : m_perFrameCallbacks)
+        // Repaint promptly after input, edits or view changes, at a capped rate while an instance drives the graph, and otherwise only as a slow fallback.
+    #ifdef MCORE_DEBUG
+        float redrawInterval = 1.0f / 30.0f;
+    #else
+        float redrawInterval = 1.0f / 60.0f;
+    #endif
+        if (!m_graphWidget->GetNeedsRedraw())
         {
-            callback->ProcessFrame(timePassedInSeconds);
+            redrawInterval = m_graphWidget->GetHasLiveContent() ? s_liveRedrawInterval : s_idleRedrawInterval;
         }
 
         bool redraw = false;
-    #ifdef MCORE_DEBUG
-        if (m_totalTime > 1.0f / 30.0f)
-    #else
-        if (m_totalTime > 1.0f / 60.0f)
-    #endif
+        if (m_totalTime > redrawInterval)
         {
             redraw = true;
             m_totalTime = 0.0f;

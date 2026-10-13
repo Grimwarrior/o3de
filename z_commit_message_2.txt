@@ -1,0 +1,87 @@
+AZSLc: halve the parse phase by left-factoring nestedNameSpecifier
+
+Measured with per-phase timers on four preprocessed shaders, median of three
+runs each. Emitted HLSL is byte identical before and after, which is the check
+that matters here: the parse tree feeds symbol resolution, so a wrong answer
+would miscompile quietly rather than fail.
+
+                                  parse        total
+  preview forward     430 -> 212 ms   603 -> 377 ms
+  preview transparent 420 -> 214 ms   586 -> 374 ms
+  preview tinted      419 -> 212 ms   588 -> 374 ms
+  terrainpbr forward  686 -> 353 ms   926 -> 586 ms
+
+nestedNameSpecifier could derive the empty string
+  It read
+
+      nestedNameSpecifier: GlobalSROToken='::'? (Identifier '::')* ;
+
+  where both parts are optional, so the rule matched nothing at all. That let
+  qualifiedId (nestedNameSpecifier unqualifiedId) derive a bare Identifier --
+  precisely what unqualifiedId derives -- making idExpression genuinely
+  ambiguous for every identifier in the file, not merely unfactored.
+
+  ANTLR resolves an ambiguity by preferring the first alternative, but it only
+  discovers the conflict by running full context ALL(*) prediction, and it does
+  that once per identifier. Requiring at least one token means qualifiedId now
+  announces itself within two ('::' or Identifier '::'), which SLL decides
+  without falling back.
+
+  Both alternatives are left unlabelled on purpose, so ANTLR still generates a
+  single NestedNameSpecifierContext exposing the same GlobalSROToken and the
+  same Identifier() and ColonColon() accessors. No context class is renamed and
+  no call site moves. ForEachIdExpressionPart already null checked
+  GlobalSROToken and already iterated a possibly empty Identifier() list, so the
+  second alternative produces exactly the shape it handled before when '::' was
+  absent. The only derivation lost is the empty one, which ANTLR's ambiguity
+  resolution never selected: a bare identifier always took unqualifiedId.
+
+  Regenerating produced byte identical output for six of the eight generated
+  files, which is what establishes that the toolchain reproduces the checked in
+  sources and that the parser diff is the grammar change rather than tool drift.
+  azslParser.h differs only in the declaration order of two accessors.
+
+  The parse phase remains the largest single cost at ~57%, and cost is still
+  superlinear at roughly n^1.7, so cutting preprocessed lines continues to pay.
+  The other candidate rule, expression, folds eighteen binary operators into one
+  alternative with no precedence ladder. It is deliberately left alone: a ladder
+  needs one labelled alternative per precedence level, which renames
+  BinaryExpressionContext and breaks its call sites, and the payoff is unmeasured.
+
+Lex the input once
+  getAllTokens() ran the lexer over the whole input to build the line map, then
+  lexer.reset() discarded that state and CommonTokenStream lexed the same input
+  again during the parse. tokens.fill() populates the stream the parser is about
+  to read, and getTokens() returns every buffered token, off channel ones
+  included, so the PREPROCESSOR channel LineDirective tokens the line map needs
+  are still present. ConstructLineMap takes non-owning views rather than owning a
+  second vector of tokens.
+
+  Worth about 9ms, which is inside the run to run spread, so this is a
+  simplification rather than a measurable win: one less tokenisation pass and
+  ~82,000 fewer per-token heap allocations. The 16ms the phase costs turns out
+  to be mostly those allocations rather than the tokenising.
+
+Drop a dead name extraction in enterIdExpression
+  ExtractNameFromIdExpression built a std::stringstream, walked the id
+  parts and returned a mangled name that nothing read: the variable it was
+  assigned to appears exactly once in the codebase, on the line creating it.
+  The function is pure, so removing the call changes nothing observable.
+
+  Worth 3.7ms of the 46ms that callback cost, over 11,031 calls on a
+  terrain shader. Small, but it is the most frequently invoked callback in
+  the semantic walk and the work was thrown away every time.
+
+  Per-callback profiling put the rest of that 46ms in RegisterSeenat and
+  TypeofExpr, which is real semantic work rather than waste. The walk itself
+  is not the problem: walking the same tree with a no-op listener costs 3-9ms
+  against a 60-90ms walk, so ~92% is callbacks, not traversal.
+
+Generate.ps1 could not run on Windows PowerShell
+  A line leading '|' is PowerShell 7 syntax. Under Windows PowerShell 5.1 it is
+  a parse error, so the script failed before executing anything and the grammar
+  could never be regenerated on a stock Windows install. Trailing pipes parse in
+  both. This also means the .interp and .tokens cleanup at the end had never run.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01D1EK8FvSYvWx9wXDH1RuXw

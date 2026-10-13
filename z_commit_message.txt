@@ -1,0 +1,48 @@
+azslc is now ~600ms; see the dependency solver section below.
+
+AZSLc dependency solver
+  SelectUnmarked() restarted its scan from m_order.begin() on every call, so
+  Solve() walked past every already-marked node to find the next unmarked one:
+  a quadratic topological sort over the symbol table, with each step doing an
+  unordered_set lookup on a string-bearing IdentifierUID. Permanent marks are
+  only ever added and never cleared mid-solve, so a cursor is sufficient --
+  everything behind it is marked for good, and a node marked ahead of it by a
+  recursive Visit is skipped when the cursor arrives.
+
+  Measured with per-phase timers on a Material Canvas preview shader, 7,673
+  preprocessed lines:
+
+    ReorderBySymbolDependency    376ms -> 12ms
+    azslc total                  980ms -> 605ms
+    terrainpbr_forwardpass     1,355ms -> 914ms
+
+  Emitted HLSL is byte identical before and after, which is the check that
+  matters: symbol order drives emission order, so a wrong answer here would
+  produce miscompiled shaders rather than a failure.
+
+  This is not Material Canvas specific. It is ~385ms off every AZSL file the
+  engine compiles, and belongs upstream.
+
+  Alongside it, ConstructLineMap's std::regex is hoisted to static const. It
+  was reconstructed once per preprocessor line directive, which cost about
+  25ms per file; the phase now measures 2.4ms.
+
+  With the solver linear, the remaining cost is almost entirely ANTLR parsing:
+  71.6% of the run, against 11% for the semantic walk and under 4% for anything
+  else. Cost also became more superlinear, roughly n^1.8 against n^1.5 before,
+  because removing the near-linear middle end leaves the parse dominant. Cutting
+  preprocessed lines is therefore worth more now than it was, not less: 10% of
+  the lines is about 17% of the time.
+
+Instrumentation
+  The azslc phase numbers come from z_azslc_instrument.py and
+  z_azslc_phases.ps1 in the engine root, which add checkpoints to AZSLc's
+  Main.cpp and MiddleEnd and tabulate runs over the .azslin products already
+  in the cache. They are not part of the build; the instrumentation is
+  applied, measured, and reverted.
+
+New graph nodes
+  gradient, color_ramp and multi_color_8.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01D1EK8FvSYvWx9wXDH1RuXw

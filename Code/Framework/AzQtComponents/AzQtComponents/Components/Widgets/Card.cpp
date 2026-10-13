@@ -134,7 +134,16 @@ namespace AzQtComponents
         connect(m_header, &CardHeader::contextMenuRequested, this, &Card::contextMenuRequested);
 
         StyleHelpers::repolishWhenPropertyChanges(this, &Card::selectedChanged);
-        StyleHelpers::repolishWhenPropertyChanges(this, &Card::expandStateChanged);
+        // Only the header background depends on the expanded state (see Card.qss), so don't restyle the whole content subtree.
+        connect(
+            this,
+            &Card::expandStateChanged,
+            this,
+            [this]()
+            {
+                StyleHelpers::repolishWidget(this);
+                StyleHelpers::repolishWidget(m_header, true);
+            });
     }
 
     QWidget* Card::contentWidget() const

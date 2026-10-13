@@ -117,6 +117,8 @@ set(FILES
     Source/SimulatedObjectSetup_Interface.inl
     Source/SingleThreadScheduler.cpp
     Source/SingleThreadScheduler.h
+    Source/SocketSetup.cpp
+    Source/SocketSetup.h
     Source/Skeleton.cpp
     Source/Skeleton.h
     Source/SkinningInfoVertexAttributeLayer.cpp
@@ -220,6 +222,8 @@ set(FILES
     Source/BlendTreeFabrikNode.h
     Source/BlendTreeFinalNode.cpp
     Source/BlendTreeFinalNode.h
+    Source/BlendTreeRerouteNode.cpp
+    Source/BlendTreeRerouteNode.h
     Source/BlendTreeFloatConditionNode.cpp
     Source/BlendTreeFloatConditionNode.h
     Source/BlendTreeFloatConstantNode.cpp
@@ -316,6 +320,8 @@ set(FILES
     Source/AnimGraphPlayTimeCondition.h
     Source/AnimGraphStateCondition.cpp
     Source/AnimGraphStateCondition.h
+    Source/AnimGraphScriptEventCondition.cpp
+    Source/AnimGraphScriptEventCondition.h
     Source/AnimGraphTagCondition.cpp
     Source/AnimGraphTagCondition.h
     Source/AnimGraphTimeCondition.cpp

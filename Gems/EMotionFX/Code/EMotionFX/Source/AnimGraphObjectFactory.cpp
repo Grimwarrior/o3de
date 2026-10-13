@@ -20,6 +20,7 @@
 #include <EMotionFX/Source/BlendSpace2DNode.h>
 #include <EMotionFX/Source/BlendSpace1DNode.h>
 #include <EMotionFX/Source/BlendTreeFinalNode.h>
+#include <EMotionFX/Source/BlendTreeRerouteNode.h>
 #include <EMotionFX/Source/BlendTreeBlend2Node.h>
 #include <EMotionFX/Source/BlendTreeBlend2NodeBase.h>
 #include <EMotionFX/Source/BlendTreeBlend2AdditiveNode.h>
@@ -83,6 +84,7 @@
 #include "AnimGraphStateCondition.h"
 #include "AnimGraphTimeCondition.h"
 #include "AnimGraphTagCondition.h"
+#include "AnimGraphScriptEventCondition.h"
 #include "AnimGraphVector2Condition.h"
 #include "AnimGraphPlayTimeCondition.h"
 
@@ -141,6 +143,7 @@ namespace EMotionFX
         AnimGraphTransitionCondition::Reflect(context);
         AnimGraphPlayTimeCondition::Reflect(context);
         AnimGraphTagCondition::Reflect(context);
+        AnimGraphScriptEventCondition::Reflect(context);
 
         TriggerActionSetup::Reflect(context);
         AnimGraphParameterAction::Reflect(context);
@@ -153,6 +156,7 @@ namespace EMotionFX
         BlendTree::Reflect(context);
         BlendTreeConnection::Reflect(context);
         BlendTreeFinalNode::Reflect(context);
+        BlendTreeRerouteNode::Reflect(context);
         BlendTreeBlend2NodeBase::Reflect(context);
         BlendTreeBlend2Node::Reflect(context);
         BlendTreeBlend2AdditiveNode::Reflect(context);
@@ -265,6 +269,7 @@ namespace EMotionFX
             azrtti_typeid<AnimGraphTimeCondition>(),
             azrtti_typeid<AnimGraphPlayTimeCondition>(),
             azrtti_typeid<AnimGraphTagCondition>(),
+            azrtti_typeid<AnimGraphScriptEventCondition>(),
             azrtti_typeid<AnimGraphParameterAction>(),
             azrtti_typeid<AnimGraphFollowerParameterAction>(),
             azrtti_typeid<AnimGraphSymbolicFollowerParameterAction>(),

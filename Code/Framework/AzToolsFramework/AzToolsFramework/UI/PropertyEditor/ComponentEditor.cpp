@@ -602,6 +602,42 @@ namespace AzToolsFramework
         GetPropertyEditor()->InvalidateAll(filter);
     }
 
+    bool ComponentEditor::SetContentSuspended(bool suspended)
+    {
+        if (!m_dpe)
+        {
+            return false;
+        }
+
+        if (!suspended && m_dpe->IsBuildSuspended())
+        {
+            m_isBuildingContent = true;
+            m_dpe->SetBuildSuspended(false);
+            m_isBuildingContent = false;
+        }
+        else
+        {
+            m_dpe->SetBuildSuspended(suspended);
+        }
+        return true;
+    }
+
+    void ComponentEditor::SetIncrementalBuildBudgetMs(int budgetMs)
+    {
+        if (m_dpe)
+        {
+            m_dpe->SetIncrementalBuildBudgetMs(budgetMs);
+        }
+    }
+
+    void ComponentEditor::SetDefaultRowExpandDepth(int depth)
+    {
+        if (m_dpe)
+        {
+            m_dpe->SetDefaultExpandDepth(depth);
+        }
+    }
+
     void ComponentEditor::QueuePropertyEditorInvalidation(PropertyModificationRefreshLevel refreshLevel)
     {
         GetPropertyEditor()->QueueInvalidation(refreshLevel);
@@ -808,6 +844,12 @@ namespace AzToolsFramework
         for (auto component : m_components)
         {
             EditorEntityInfoRequestBus::Event(component->GetEntityId(), &EditorEntityInfoRequestBus::Events::SetComponentExpanded, component->GetId(), expanded);
+        }
+
+        // A collapsed component skipped building its widgets; build them now that they are about to be shown.
+        if (expanded)
+        {
+            SetContentSuspended(false);
         }
 
         emit OnExpansionContractionDone();

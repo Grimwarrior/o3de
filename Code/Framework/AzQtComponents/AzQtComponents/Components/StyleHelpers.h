@@ -38,13 +38,48 @@ namespace AzQtComponents
          *
          * See Example::Widget in StyleSheetPage.h and ExampleWidget.qss for a working example.
          */
-        template <typename T, typename ...Args>
-        void repolishWhenPropertyChanges(T* widget, void (T::*signal)(Args...))
+        // Re-evaluates the style sheet rules of a widget, and optionally of every polished descendant (which is slow for big subtrees).
+        inline void repolishWidget(QWidget* widget, bool includeChildren = false)
         {
-            QObject::connect(widget, signal, widget, [widget]() {
+            // Prevent asserts in Unit Tests
+            if (!widget || !StyleManager::isInstanced())
+            {
+                return;
+            }
+
+            if (QStyle* styleSheet = StyleManager::styleSheetStyle(widget))
+            {
+                styleSheet->unpolish(widget);
+                styleSheet->polish(widget);
+                if (includeChildren)
+                {
+                    for (QWidget* child : widget->findChildren<QWidget*>())
+                    {
+                        // A widget that was never polished has no cached rules to refresh.
+                        if (child->testAttribute(Qt::WA_WState_Polished))
+                        {
+                            styleSheet->unpolish(child);
+                            styleSheet->polish(child);
+                        }
+                    }
+                }
+            }
+        }
+
+        // shouldSkip is checked on every signal; when it returns true only the geometry is invalidated, the restyle is skipped.
+        template <typename T, typename SkipFn, typename ...Args>
+        void repolishWhenPropertyChanges(T* widget, void (T::*signal)(Args...), SkipFn shouldSkip)
+        {
+            QObject::connect(widget, signal, widget, [widget, shouldSkip]() {
                 // Prevent asserts in Unit Tests
                 if (!StyleManager::isInstanced())
                 {
+                    return;
+                }
+
+                if (shouldSkip())
+                {
+                    widget->updateGeometry();
                     return;
                 }
 
@@ -56,11 +91,22 @@ namespace AzQtComponents
                     styleSheet->polish(widget);
                     for (QWidget* child : widget->template findChildren<QWidget*>())
                     {
+                        // A widget that was never polished has no cached rules to refresh.
+                        if (!child->testAttribute(Qt::WA_WState_Polished))
+                        {
+                            continue;
+                        }
                         styleSheet->unpolish(child);
                         styleSheet->polish(child);
                     }
                 }
             });
+        }
+
+        template <typename T, typename ...Args>
+        void repolishWhenPropertyChanges(T* widget, void (T::*signal)(Args...))
+        {
+            repolishWhenPropertyChanges(widget, signal, []() { return false; });
         }
 
         /* StyleHelpers::findParent<T> is an utility function to find recursively a parent object of

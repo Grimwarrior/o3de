@@ -30,6 +30,12 @@ namespace AZ
         JsonSerializationResult::ResultCode result(JSR::Tasks::ReadField);
         AZ::Uuid typeId = AZ::Uuid::CreateNull();
 
+        // A null or otherwise non-object value (left behind by an unresolved type) has no members to search.
+        if (!inputValue.IsObject())
+        {
+            return context.Report(JSR::Tasks::ReadField, JSR::Outcomes::TypeMismatch, "ScriptPropertySerializer::Load expected a JSON object");
+        }
+
         auto typeIdMember = inputValue.FindMember(JsonSerialization::TypeIdFieldIdentifier);
         if (typeIdMember == inputValue.MemberEnd())
         {
