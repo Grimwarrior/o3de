@@ -368,6 +368,9 @@ namespace SimuCore::ParticleCore {
             case RibbonFacing::UP:
                 facing = AZ::Vector3::CreateAxisZ();
                 break;
+            case RibbonFacing::ENTITY:
+                facing = world.emitterTransform.TransformVector(AZ::Vector3::CreateAxisZ());
+                break;
             case RibbonFacing::SCREEN:
             default:
                 facing = world.axisZ;
