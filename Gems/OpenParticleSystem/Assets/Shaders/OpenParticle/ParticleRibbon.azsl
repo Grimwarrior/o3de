@@ -39,6 +39,8 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
 
     // Edge and core: a soft fade towards the sides and a bright line down the middle.
     float       m_edgeSoftness;
+    float       m_startFade;
+    float       m_endFade;
     float3      m_coreColor;
     float       m_coreIntensity;
     float       m_corePower;
@@ -144,6 +146,8 @@ PixelOutput MainPS(in VertexOutput input)
     {
         color.a *= 1.0 - smoothstep(1.0 - MaterialSrg::m_edgeSoftness, 1.0, across);
     }
+    // Soft ends: v runs along the ribbon, 0 at its oldest particle and 1 at its newest in Ribbon mode (the other way round in Trail mode); only meaningful with Tiling Distance 0.
+    color.a *= smoothstep(0.0, max(MaterialSrg::m_startFade, 0.0001), uv.y) * smoothstep(0.0, max(MaterialSrg::m_endFade, 0.0001), 1.0 - uv.y);
     const float core = pow(saturate(1.0 - across), max(MaterialSrg::m_corePower, 0.01));
     color.rgb += MaterialSrg::m_coreColor * (core * MaterialSrg::m_coreIntensity);
 

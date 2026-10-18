@@ -11,6 +11,8 @@
         "dissolve.amount": 0.6,
         "dissolve.softness": 0.2,
         "edge.softness": 0.55,
+        "edge.startFade": 0.1,
+        "edge.endFade": 0.3,
         "edge.coreColor": [ 0.85, 0.95, 1.0 ],
         "edge.coreIntensity": 1.5,
         "edge.corePower": 4.0,

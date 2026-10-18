@@ -303,6 +303,32 @@
                     }
                 },
                 {
+                    "name": "startFade",
+                    "displayName": "Start Fade",
+                    "description": "Fades the end of the ribbon where v is 0, as a fraction of its length: the oldest particle in Ribbon mode, the newest in Trail mode. 0 keeps it hard. Needs Tiling Distance 0.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 0.5,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_startFade"
+                    }
+                },
+                {
+                    "name": "endFade",
+                    "displayName": "End Fade",
+                    "description": "Fades the end of the ribbon where v is 1, as a fraction of its length: the newest particle in Ribbon mode (the weapon end of a trail), the oldest in Trail mode. 0 keeps it hard. Needs Tiling Distance 0.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 0.5,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_endFade"
+                    }
+                },
+                {
                     "name": "coreColor",
                     "displayName": "Core Color",
                     "description": "Colour of the bright line down the middle of the ribbon.",
