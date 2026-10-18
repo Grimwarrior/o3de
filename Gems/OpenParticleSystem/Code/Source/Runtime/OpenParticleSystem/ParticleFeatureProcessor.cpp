@@ -10,7 +10,12 @@
 
 #include <AzCore/Instance/InstanceDatabase.h>
 #include <AzCore/Jobs/Algorithms.h>
+#include <AzCore/RTTI/BehaviorContext.h>
 #include <AzCore/Jobs/JobCompletion.h>
+#include <Atom/RPI.Public/Pass/Pass.h>
+#include <Atom/RPI.Public/Pass/PassFilter.h>
+#include <Atom/RPI.Public/Pass/PassSystemInterface.h>
+#include <Atom/RPI.Public/RenderPipeline.h>
 #include <Atom/RPI.Public/Scene.h>
 #include <Atom/RPI.Public/View.h>
 #include <Atom/RHI/Factory.h>
@@ -254,17 +259,29 @@ namespace OpenParticle
         {
             serializeContext->Class<ParticleFeatureProcessor, FeatureProcessor>()->Version(0);
         }
+
+        if (auto* behaviorContext = azrtti_cast<AZ::BehaviorContext*>(context))
+        {
+            behaviorContext->EBus<ParticleDistortionRequestBus>("ParticleDistortionRequestBus")
+                ->Attribute(AZ::Script::Attributes::Module, "OpenParticleSystem")
+                ->Attribute(AZ::Script::Attributes::Scope, AZ::Script::Attributes::ScopeFlags::Common)
+                ->Event("KeepDistortionActive", &ParticleDistortionRequestBus::Events::KeepDistortionActive,
+                    { AZ::BehaviorParameterOverrides("Seconds", "How long the scene-copy and distortion passes should stay on") })
+                    ->Attribute(AZ::Script::Attributes::ToolTip, "Keep the particle distortion passes running, needed by mesh slash sheets that use the distortion shader");
+        }
     }
 
     void ParticleFeatureProcessor::Activate()
     {
         Init();
         AZ::TickBus::Handler::BusConnect();
+        ParticleDistortionRequestBus::Handler::BusConnect();
     }
 
     void ParticleFeatureProcessor::Deactivate()
     {
         ShutDown();
+        ParticleDistortionRequestBus::Handler::BusDisconnect();
         AZ::TickBus::Handler::BusDisconnect();
     }
 
@@ -354,6 +371,80 @@ namespace OpenParticle
         }
     }
 
+    namespace
+    {
+        const AZ::Name DistortionCopyTemplate{ "ParticleDistortionCopyPassTemplate" };
+        const AZ::Name DistortionTemplate{ "ParticleDistortionPassTemplate" };
+        const AZ::Name DistortionCopyPassName{ "ParticleDistortionCopyPass" };
+        const AZ::Name DistortionPassName{ "ParticleDistortionPass" };
+    }
+
+    // Puts a frame copy and the distortion raster pass right after the transparent pass of every default-view pipeline.
+    void ParticleFeatureProcessor::AddRenderPasses(AZ::RPI::RenderPipeline* pipeline)
+    {
+        const AZ::Name transparentPass{ "TransparentPass" };
+        const AZ::Name depthPass{ "DepthPrePass" };
+        if (pipeline->GetViewType() != AZ::RPI::ViewType::Default || pipeline->FindFirstPass(DistortionPassName) ||
+            !pipeline->FindFirstPass(transparentPass) || !pipeline->FindFirstPass(depthPass))
+        {
+            return;
+        }
+
+        AZ::RPI::PassRequest copyRequest;
+        copyRequest.m_passName = DistortionCopyPassName;
+        copyRequest.m_templateName = DistortionCopyTemplate;
+        copyRequest.m_passEnabled = m_distortionPassesEnabled;
+        copyRequest.AddInputConnection(AZ::RPI::PassConnection{ AZ::Name("Input"), AZ::RPI::PassAttachmentRef{ transparentPass, AZ::Name("InputOutput") } });
+        auto copyPass = AZ::RPI::PassSystemInterface::Get()->CreatePassFromRequest(&copyRequest);
+
+        AZ::RPI::PassRequest distortionRequest;
+        distortionRequest.m_passName = DistortionPassName;
+        distortionRequest.m_templateName = DistortionTemplate;
+        distortionRequest.m_passEnabled = m_distortionPassesEnabled;
+        distortionRequest.AddInputConnection(AZ::RPI::PassConnection{ AZ::Name("SceneColor"), AZ::RPI::PassAttachmentRef{ DistortionCopyPassName, AZ::Name("Output") } });
+        distortionRequest.AddInputConnection(AZ::RPI::PassConnection{ AZ::Name("InputOutput"), AZ::RPI::PassAttachmentRef{ transparentPass, AZ::Name("InputOutput") } });
+        distortionRequest.AddInputConnection(AZ::RPI::PassConnection{ AZ::Name("DepthStencil"), AZ::RPI::PassAttachmentRef{ depthPass, AZ::Name("Depth") } });
+        auto distortionPass = AZ::RPI::PassSystemInterface::Get()->CreatePassFromRequest(&distortionRequest);
+
+        if (copyPass && distortionPass)
+        {
+            pipeline->AddPassAfter(copyPass, transparentPass);
+            pipeline->AddPassAfter(distortionPass, DistortionCopyPassName);
+        }
+    }
+
+    // The distortion passes cost a full-screen copy, so they only run while a distortion shader is being drawn.
+    void ParticleFeatureProcessor::OnRenderEnd()
+    {
+        if (!m_distortionTag.IsValid())
+        {
+            m_distortionTag = AZ::RHI::RHISystemInterface::Get()->GetDrawListTagRegistry()->FindTag(AZ::Name("particledistortion"));
+        }
+
+        if (m_distortionIdleFrames < DISTORTION_IDLE_FRAMES)
+        {
+            ++m_distortionIdleFrames;
+        }
+        const bool wanted = m_distortionIdleFrames < DISTORTION_IDLE_FRAMES || m_distortionHoldSeconds > 0.0f;
+        if (wanted == m_distortionPassesEnabled)
+        {
+            return;
+        }
+        m_distortionPassesEnabled = wanted;
+
+        for (const AZ::Name& templateName : { DistortionCopyTemplate, DistortionTemplate })
+        {
+            const auto filter = AZ::RPI::PassFilter::CreateWithTemplateName(templateName, GetParentScene());
+            AZ::RPI::PassSystemInterface::Get()->ForEachPass(
+                filter,
+                [wanted](AZ::RPI::Pass* pass) -> AZ::RPI::PassFilterExecutionFlow
+                {
+                    pass->SetEnabled(wanted);
+                    return AZ::RPI::PassFilterExecutionFlow::ContinueVisitingPasses;
+                });
+        }
+    }
+
     void ParticleFeatureProcessor::OnRenderPipelineAdded([[maybe_unused]] AZ::RPI::RenderPipelinePtr pipeline)
     {
     }
@@ -421,8 +512,14 @@ namespace OpenParticle
         return iter == m_pipelineStates.end() ? nullptr : &iter->second;
     }
 
+    void ParticleFeatureProcessor::KeepDistortionActive(float seconds)
+    {
+        m_distortionHoldSeconds = AZStd::max(m_distortionHoldSeconds, seconds);
+    }
+
     void ParticleFeatureProcessor::OnTick(float deltaTime, AZ::ScriptTimePoint scriptTime)
     {
+        m_distortionHoldSeconds = AZStd::max(0.0f, m_distortionHoldSeconds - deltaTime);
         m_timeToSim = deltaTime;
         AZ_UNUSED(scriptTime);
     }

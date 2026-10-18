@@ -1,0 +1,50 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "PassAsset",
+    "ClassData": {
+        "PassTemplate": {
+            "Name": "ParticleDistortionPassTemplate",
+            "PassClass": "RasterPass",
+            "Slots": [
+                {
+                    "Name": "SceneColor",
+                    "ShaderInputName": "m_sceneColor",
+                    "SlotType": "Input",
+                    "ScopeAttachmentUsage": "Shader",
+                    "ScopeAttachmentStage": "FragmentShader",
+                    "ImageViewDesc": {
+                        "MipSliceMin": "0",
+                        "MipSliceMax": "0",
+                        "AspectFlags": [
+                            "Color"
+                        ]
+                    }
+                },
+                {
+                    "Name": "InputOutput",
+                    "SlotType": "InputOutput",
+                    "ScopeAttachmentUsage": "RenderTarget"
+                },
+                {
+                    "Name": "DepthStencil",
+                    "SlotType": "Input",
+                    "ScopeAttachmentUsage": "DepthStencil",
+                    "LoadStoreAction": {
+                        "StoreAction": "None",
+                        "StoreActionStencil": "None"
+                    }
+                }
+            ],
+            "PassData": {
+                "$type": "RasterPassData",
+                "DrawListTag": "particledistortion",
+                "DrawListSortType": "KeyThenReverseDepth",
+                "BindViewSrg": true,
+                "PassSrgShaderAsset": {
+                    "FilePath": "Shaders/OpenParticle/ParticleDistortion.shader"
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,235 @@
+#pragma once
+
+#include <viewsrg_all.srgi>
+#include <scenesrg_all.srgi>
+
+#define PIPELINE_HAS_PASS_SRG 0
+
+#include <Atom/Features/SrgSemantics.azsli>
+#include <Atom/RPI/ShaderResourceGroups/DefaultDrawSrg.azsli>
+#include <Atom/Features/PBR/DefaultObjectSrg.azsli>
+#include <OpenParticle/ParticleCommon.azsli>
+#include <Atom/Features/Pipeline/Forward/ForwardPassVertexData.azsli>
+#include <Atom/Features/Pipeline/Forward/ForwardPassPipelineCallbacks.azsli>
+
+option enum class FacingMode {CameraPos, CameraSquare, CameraRectangle, Velocity, Custom } o_facingMode;
+
+// Filled by the ParticleDistortionPass, a copy of the lit frame taken after the transparent pass.
+ShaderResourceGroup PassSrg : SRG_PerPass
+{
+    Texture2D<float4> m_sceneColor;
+
+    Sampler m_sceneSampler
+    {
+        MinFilter = Linear;
+        MagFilter = Linear;
+        MipFilter = Linear;
+        AddressU = Clamp;
+        AddressV = Clamp;
+        AddressW = Clamp;
+    };
+}
+
+ShaderResourceGroup MaterialSrg : SRG_PerMaterial
+{
+    Texture2D m_maskMap;
+
+    float m_strength;
+    float m_swirl;
+    float m_chromatic;
+    float m_glow;
+    float m_opacity;
+    float m_tintStrength;
+    float2 m_flow;
+    float3 m_tint;
+
+    Sampler m_sampler
+    {
+        MinFilter = Linear;
+        MagFilter = Linear;
+        MipFilter = Linear;
+        AddressU = Clamp;
+        AddressV = Clamp;
+        AddressW = Clamp;
+    };
+}
+
+static float4 positions[4] = {
+        float4(-1.0, 0.0, -1.0, 0.0),
+        float4( 1.0, 0.0, -1.0, 0.0),
+        float4(-1.0, 0.0,  1.0, 0.0),
+        float4( 1.0, 0.0,  1.0, 0.0)
+};
+
+static float2 uvs[4] = {
+    float2(0, 0),
+    float2(1, 0),
+    float2(0, 1),
+    float2(1, 1)
+};
+
+struct VertexInput
+{
+    float4 position : POSITION;
+    float4 color    : COLOR;
+    float4 initRotation : INITROTATION;
+    float4 rotateVector : ROTATEVECTOR;
+    float4 scale    : SCALE;
+    float4 up       : UP;
+    float4 velocity : VELOCITY;
+    float4 subuv    : SUBUV;
+    uint vertexId : SV_VertexID;
+};
+
+struct VertexOutput
+{
+    float4 position : SV_Position;
+    float4 color : COLOR;
+    float2 uv : UV0;
+};
+
+float3 GetPos(VertexInput input, float4x4 objectToWorld, float3 cameraDir, float3 up, float3 size) {
+
+    float3 pos = mul(GetRotationFromLookAtMatrix(cameraDir, up, input.initRotation.w),
+        positions[input.vertexId].xyz * size.xyz);
+    pos = mul(AxisRadianToMatrix(float4(0, 1, 0, input.rotateVector.w)), pos);
+    pos += input.position.xyz;
+    pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
+    return pos;
+}
+
+float3 GetVelocityFacingPos(VertexInput input, float4x4 objectToWorld, float3 cameraDir) {
+    if (length(input.velocity) == 0.f) {
+        return GetPos(input, objectToWorld, cameraDir, input.up.xyz, input.scale.xyz);
+    }
+    float3x3 rotation = GetRotationFromLookAtMatrix(cameraDir, input.velocity.xyz);
+    float3 pos = (input.scale.x < input.scale.z) ? mul(rotation, positions[input.vertexId].xyz * input.scale.xyz)
+        : mul(rotation, positions[input.vertexId].xyz * float3(input.scale.z, input.scale.y, input.scale.x));
+    pos += input.position.xyz;
+    pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
+    return pos;
+}
+
+float3 GetCustomFacingPos(VertexInput input, float4x4 objectToWorld) {
+    float3 pos = mul(QuaternionToMatrix(QuatNormalize(float4(1, 0, 0, 0))),
+        positions[input.vertexId].xyz * input.scale.xyz); // rotate 180 around the x-axis
+    pos = mul(AxisRadianToMatrix(input.initRotation), pos);
+    pos = mul(AxisRadianToMatrix(input.rotateVector), pos);
+    pos += input.position.xyz;
+    pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
+    return pos;
+}
+
+VertexOutput MainVS(in VertexInput input, uint instanceId : SV_InstanceID)
+{
+    VertexOutput output;
+    VsSystemValues SV;
+    SV.m_instanceId = instanceId;
+    float4x4 objectToWorld = GetObjectToWorldMatrix(SV);
+    float3 worldOffset = float3(objectToWorld[0][3], objectToWorld[1][3], objectToWorld[2][3]);
+
+    float3 cameraDir;
+    float3 pos;
+
+    switch (o_facingMode)
+    {
+    case FacingMode::CameraPos:
+        cameraDir = normalize(ViewSrg::m_worldPosition - worldOffset - input.position.xyz);
+        pos = GetPos(input, objectToWorld, cameraDir, float3(0, 0, 1), input.scale.xyz);
+        break;
+    case FacingMode::CameraSquare:
+        cameraDir = -mul(ViewSrg::m_viewMatrixInverse, float4(0, 0, -1, 0)).xyz;
+        pos = GetPos(input, objectToWorld, cameraDir, input.up.xyz, float3(input.scale.x, input.scale.y, input.scale.x));
+        break;
+    case FacingMode::CameraRectangle:
+        cameraDir = -mul(ViewSrg::m_viewMatrixInverse, float4(0, 0, -1, 0)).xyz;
+        pos = GetPos(input, objectToWorld, cameraDir, input.up.xyz, input.scale.xyz);
+        break;
+    case FacingMode::Velocity:
+        cameraDir = normalize(ViewSrg::m_worldPosition - worldOffset - input.position.xyz);
+        pos = GetVelocityFacingPos(input, objectToWorld, cameraDir);
+        break;
+    case FacingMode::Custom:
+        pos = GetCustomFacingPos(input, objectToWorld);
+        break;
+    }
+
+    output.position = mul(ViewSrg::m_viewProjectionMatrix, float4(pos, 1.0));
+    output.uv = uvs[input.vertexId] / input.subuv.xy + input.subuv.zw;
+    output.color = input.color;
+    return output;
+}
+
+struct PixelOutput
+{
+     float4 color : SV_Target0;
+};
+
+float MaskAt(float2 uv)
+{
+    return MaterialSrg::m_maskMap.SampleLevel(MaterialSrg::m_sampler, uv, 0).a;
+}
+
+// Direction the mask brightens in, in uv space; a wide and a narrow tap pair keep the field smooth inside thick strokes.
+float2 MaskGradient(float2 uv, float2 texel)
+{
+    float2 wide = 8.0 * texel;
+    float2 narrow = 3.0 * texel;
+    float2 g = float2(MaskAt(uv + float2(wide.x, 0)) - MaskAt(uv - float2(wide.x, 0)),
+                      MaskAt(uv + float2(0, wide.y)) - MaskAt(uv - float2(0, wide.y)));
+    g += float2(MaskAt(uv + float2(narrow.x, 0)) - MaskAt(uv - float2(narrow.x, 0)),
+                MaskAt(uv + float2(0, narrow.y)) - MaskAt(uv - float2(0, narrow.y)));
+    return g;
+}
+
+PixelOutput MainPS(in VertexOutput input)
+{
+    PixelOutput output;
+
+    float mask = MaskAt(input.uv);
+
+    float maskWidth;
+    float maskHeight;
+    MaterialSrg::m_maskMap.GetDimensions(maskWidth, maskHeight);
+    float2 gradient = MaskGradient(input.uv, 1.0 / float2(maskWidth, maskHeight));
+    gradient += MaterialSrg::m_flow * mask;
+
+    // The uv gradient is turned into a screen direction through the screen derivatives of the uv.
+    float2 uvDx = ddx(input.uv);
+    float2 uvDy = ddy(input.uv);
+    float det = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+    float2 screenDir = float2(0, 0);
+    if (abs(det) > 1e-12)
+    {
+        float2 pixelGradient = float2(uvDy.y * gradient.x - uvDy.x * gradient.y,
+                                      -uvDx.y * gradient.x + uvDx.x * gradient.y) / det;
+        float len = length(pixelGradient);
+        screenDir = len > 1e-5 ? pixelGradient / len : float2(0, 0);
+    }
+    float2 swirlDir = float2(-screenDir.y, screenDir.x);
+    float2 direction = lerp(screenDir, swirlDir, saturate(MaterialSrg::m_swirl));
+
+    float sceneWidth;
+    float sceneHeight;
+    PassSrg::m_sceneColor.GetDimensions(sceneWidth, sceneHeight);
+    float2 sceneSize = float2(sceneWidth, sceneHeight);
+    float2 screenUv = input.position.xy / sceneSize;
+
+    // Strength is in pixels at 1080p and follows the render resolution; the particle colour alpha fades it out over the lifetime.
+    float fade = input.color.a;
+    float2 offsetPx = direction * MaterialSrg::m_strength * (sceneHeight / 1080.0) * mask * fade;
+    float2 offsetUv = offsetPx / sceneSize;
+    float chroma = MaterialSrg::m_chromatic;
+
+    float3 scene;
+    scene.r = PassSrg::m_sceneColor.SampleLevel(PassSrg::m_sceneSampler, screenUv + offsetUv * (1.0 + chroma), 0).r;
+    scene.g = PassSrg::m_sceneColor.SampleLevel(PassSrg::m_sceneSampler, screenUv + offsetUv, 0).g;
+    scene.b = PassSrg::m_sceneColor.SampleLevel(PassSrg::m_sceneSampler, screenUv + offsetUv * (1.0 - chroma), 0).b;
+
+    float3 tint = MaterialSrg::m_tint * input.color.rgb;
+    float3 color = lerp(scene, scene * tint, MaterialSrg::m_tintStrength);
+    color += tint * MaterialSrg::m_glow * mask * fade;
+
+    output.color = float4(color, saturate(mask * fade * MaterialSrg::m_opacity));
+    return output;
+}

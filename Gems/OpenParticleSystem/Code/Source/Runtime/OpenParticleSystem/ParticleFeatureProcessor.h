@@ -27,6 +27,7 @@
 #include <AzCore/std/parallel/mutex.h>
 
 #include <OpenParticleSystem/Asset/ParticleAsset.h>
+#include <OpenParticleSystem/ParticleDistortionBus.h>
 #include <OpenParticleSystem/ParticleFeatureProcessorInterface.h>
 #include <OpenParticleSystem/ParticleSystem.h>
 
@@ -89,8 +90,12 @@ namespace OpenParticle
         AZStd::atomic<bool> m_overridesDirty{ false };
     };
 
+    //! Frames the distortion passes stay on after the last distortion draw, so a burst of slashes doesn't rebuild the pipeline each time.
+    constexpr AZ::u32 DISTORTION_IDLE_FRAMES = 180;
+
     class ParticleFeatureProcessor final
         : public ParticleFeatureProcessorInterface
+        , ParticleDistortionRequestBus::Handler
         , AZ::TickBus::Handler
     {
     public:
@@ -104,6 +109,9 @@ namespace OpenParticle
         void Deactivate() override;
         void Simulate(const AZ::RPI::FeatureProcessor::SimulatePacket& packet) override;
         void Render(const AZ::RPI::FeatureProcessor::RenderPacket& packet) override;
+
+        void AddRenderPasses(AZ::RPI::RenderPipeline* pipeline) override;
+        void OnRenderEnd() override;
 
         void OnRenderPipelineAdded(AZ::RPI::RenderPipelinePtr pipeline) override;
 
@@ -121,12 +129,19 @@ namespace OpenParticle
 
         ParticlePipelineState* Fetch(AZ::u32 key);
 
+        // ParticleDistortionRequestBus::Handler overrides
+        void KeepDistortionActive(float seconds) override;
+
         // AZ::TickBus::Handler overrides
         void OnTick(float deltaTime, AZ::ScriptTimePoint time) override;
         int GetTickOrder() override;
 
         AZ::RHI::Ptr<AZ::RHI::BufferPool> GetBufferPool() const { return m_bufferPool; }
         AZ::RHI::Ptr<AZ::RHI::BufferPool> GetShaderReadBufferPool() const { return m_shaderReadBufferPool; }
+
+        //! Draw list tag of the distortion shaders; the passes that serve it only run while something draws with it.
+        AZ::RHI::DrawListTag GetDistortionTag() const { return m_distortionTag; }
+        void NotifyDistortionDrawn() { m_distortionIdleFrames = 0; }
 
     private:
         void Init() override;
@@ -146,5 +161,9 @@ namespace OpenParticle
         AZStd::unordered_map<AZ::u32, ParticlePipelineState> m_pipelineStates;
         AZStd::optional<AZStd::chrono::time_point<AZStd::chrono::high_resolution_clock>> time;
         float m_timeToSim{0};
+        AZ::RHI::DrawListTag m_distortionTag;
+        AZ::u32 m_distortionIdleFrames = DISTORTION_IDLE_FRAMES;
+        float m_distortionHoldSeconds = 0.0f;
+        bool m_distortionPassesEnabled = false;
     };
 } // namespace OpenParticle

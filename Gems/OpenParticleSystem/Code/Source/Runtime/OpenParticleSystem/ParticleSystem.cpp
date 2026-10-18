@@ -365,6 +365,10 @@ namespace OpenParticle
                 for (auto& shader : instance.m_shaders)
                 {
                     auto drawListTag = shader.m_drawListTag;
+                    if (m_particleFp->GetDistortionTag().IsValid() && drawListTag == m_particleFp->GetDistortionTag())
+                    {
+                        m_particleFp->NotifyDistortionDrawn();
+                    }
                     if (!view->HasDrawListTag(drawListTag))
                     {
                         continue;

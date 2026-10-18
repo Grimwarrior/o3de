@@ -1,0 +1,17 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "AssetAliasesSourceData",
+    "ClassData": {
+        "AssetPaths": [
+            {
+                "Name": "ParticleDistortionCopyPassTemplate",
+                "Path": "Passes/OpenParticleSystem/ParticleDistortionCopy.pass"
+            },
+            {
+                "Name": "ParticleDistortionPassTemplate",
+                "Path": "Passes/OpenParticleSystem/ParticleDistortion.pass"
+            }
+        ]
+    }
+}

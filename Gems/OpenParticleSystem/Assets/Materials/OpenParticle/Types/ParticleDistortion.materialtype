@@ -1,0 +1,146 @@
+{
+    "description": "Material Type for particle sprites that bend the scene behind them, drawn by the ParticleDistortionPass.",
+    "version": 1,
+    "propertyLayout": {
+        "groups": [
+            {
+                "name": "general",
+                "displayName": "Distortion",
+                "description": "How the scene behind the particle is warped."
+            }
+        ],
+        "properties": {
+            "general": [
+                {
+                    "name": "maskMap",
+                    "displayName": "Mask Map",
+                    "description": "Alpha channel shapes where the scene is warped.",
+                    "type": "image",
+                    "defaultValue": "Textures/OpenParticle/DefaultSpriteBaseColor.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMap"
+                    }
+                },
+                {
+                    "name": "strength",
+                    "displayName": "Strength",
+                    "description": "Largest warp in pixels at 1080p.",
+                    "type": "Float",
+                    "defaultValue": 28.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_strength"
+                    },
+                    "min": 0.0,
+                    "max": 300.0
+                },
+                {
+                    "name": "swirl",
+                    "displayName": "Swirl",
+                    "description": "0 pushes the scene along the mask gradient, 1 turns it around the strokes.",
+                    "type": "Float",
+                    "defaultValue": 0.35,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_swirl"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "chromatic",
+                    "displayName": "Chromatic Split",
+                    "description": "Colour channels are warped by slightly different amounts.",
+                    "type": "Float",
+                    "defaultValue": 0.15,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_chromatic"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "flow",
+                    "displayName": "Flow",
+                    "description": "Extra warp direction in mask uv space, scaled by the mask.",
+                    "type": "Vector2",
+                    "defaultValue": [
+                        0.0,
+                        0.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_flow"
+                    }
+                },
+                {
+                    "name": "glow",
+                    "displayName": "Glow",
+                    "description": "Adds the tint on top of the warped scene.",
+                    "type": "Float",
+                    "defaultValue": 0.1,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_glow"
+                    },
+                    "min": 0.0,
+                    "max": 10.0
+                },
+                {
+                    "name": "opacity",
+                    "displayName": "Opacity",
+                    "description": "Overall blend of the effect over the scene.",
+                    "type": "Float",
+                    "defaultValue": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_opacity"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "tint",
+                    "displayName": "Tint",
+                    "description": "Colour applied to the warped scene and glow, multiplied with the particle colour.",
+                    "type": "Color",
+                    "defaultValue": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_tint"
+                    }
+                },
+                {
+                    "name": "tintStrength",
+                    "displayName": "Tint Strength",
+                    "description": "How much of the tint multiplies the warped scene.",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_tintStrength"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            ]
+        }
+    },
+    "shaders": [
+        {
+            "file": "Shaders/OpenParticle/ParticleDistortion.shader",
+            "tag": "ParticleDistortion"
+        }
+    ],
+    "functors": [],
+    "uvNameMap": {
+        "UV0": "Tiled",
+        "UV1": "Unwrapped"
+    }
+}
