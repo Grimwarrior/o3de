@@ -382,7 +382,8 @@ namespace OpenParticle
 
             serializeContext->Enum<SimuCore::ParticleCore::RibbonFacing>()
                 ->Value("SCREEN", SimuCore::ParticleCore::RibbonFacing::SCREEN)
-                ->Value("CAMERA", SimuCore::ParticleCore::RibbonFacing::CAMERA);
+                ->Value("CAMERA", SimuCore::ParticleCore::RibbonFacing::CAMERA)
+                ->Value("UP", SimuCore::ParticleCore::RibbonFacing::UP);
 
             serializeContext->Enum<SimuCore::ParticleCore::RenderType>()
                 ->Value("SPRITE", SimuCore::ParticleCore::RenderType::SPRITE)
@@ -461,7 +462,8 @@ namespace OpenParticle
 
                 editContext->Enum<SimuCore::ParticleCore::RibbonFacing>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Render Alignment"), QT_TRANSLATE_NOOP("OpenParticleSystem", "The facing Mode of ribbon particles."))
                     ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "SCREEN"), SimuCore::ParticleCore::RibbonFacing::SCREEN)
-                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "CAMERA"), SimuCore::ParticleCore::RibbonFacing::CAMERA);
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "CAMERA"), SimuCore::ParticleCore::RibbonFacing::CAMERA)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "UP"), SimuCore::ParticleCore::RibbonFacing::UP);
 
                 editContext->Enum<SimuCore::ParticleCore::TrailMode>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Trail Mode"),
                     QT_TRANSLATE_NOOP("OpenParticleSystem", "The type of trail."))

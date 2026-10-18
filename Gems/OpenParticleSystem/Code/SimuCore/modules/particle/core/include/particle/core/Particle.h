@@ -102,7 +102,8 @@ namespace SimuCore::ParticleCore {
 
     enum class RibbonFacing : AZ::u8 {
         SCREEN,
-        CAMERA
+        CAMERA,
+        UP
     };
 
     enum class DrawType : AZ::u8 {

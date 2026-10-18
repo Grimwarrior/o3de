@@ -365,6 +365,9 @@ namespace SimuCore::ParticleCore {
             case RibbonFacing::CAMERA:
                 facing = world.cameraPosition - position;
                 break;
+            case RibbonFacing::UP:
+                facing = AZ::Vector3::CreateAxisZ();
+                break;
             case RibbonFacing::SCREEN:
             default:
                 facing = world.axisZ;
