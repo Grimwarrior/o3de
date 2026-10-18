@@ -10,6 +10,7 @@
 
 #include <AzCore/Component/Component.h>
 #include <AzCore/Component/EntityId.h>
+#include <AzCore/std/containers/unordered_set.h>
 #include <AzCore/std/containers/vector.h>
 #include <AzCore/std/string/string.h>
 #include <Integration/AnimationBus.h>
@@ -23,7 +24,9 @@ namespace OpenParticle
         Play,
         Restart,
         Stop,
-        Pause
+        Pause,
+        // Spawn rate to zero: what is already out lives on and fades by its own lifetime. Play or Restart brings the spawn rate back.
+        StopSpawning
     };
 
     // One motion event name and what it does to the Particle component on the target entity.
@@ -68,12 +71,15 @@ namespace OpenParticle
         // ActorNotificationBus
         void OnMotionEvent(EMotionFX::Integration::MotionEvent motionEvent) override;
 
-        void Apply(const ParticleMotionEventEntry& entry, MotionEventParticleAction action) const;
+        void Apply(const ParticleMotionEventEntry& entry, MotionEventParticleAction action);
         AZ::EntityId ResolveTarget(const ParticleMotionEventEntry& entry) const;
+        void ClearSpawnStop(AZ::EntityId target);
 
         AZStd::vector<ParticleMotionEventEntry> m_entries;
         // Events from clips that are fading out (weight below this) are ignored, so a blend does not fire twice.
         float m_minWeight = 0.5f;
+        // Particle entities whose spawn rate this component zeroed; their overrides are cleared before they play again.
+        AZStd::unordered_set<AZ::EntityId> m_spawnStopped;
     };
 } // namespace OpenParticle
 

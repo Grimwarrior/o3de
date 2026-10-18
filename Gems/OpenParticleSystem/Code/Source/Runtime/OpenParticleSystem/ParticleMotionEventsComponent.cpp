@@ -26,7 +26,8 @@ namespace OpenParticle
                 ->Value("Play", MotionEventParticleAction::Play)
                 ->Value("Restart", MotionEventParticleAction::Restart)
                 ->Value("Stop", MotionEventParticleAction::Stop)
-                ->Value("Pause", MotionEventParticleAction::Pause);
+                ->Value("Pause", MotionEventParticleAction::Pause)
+                ->Value("StopSpawning", MotionEventParticleAction::StopSpawning);
 
             serializeContext->Class<ParticleMotionEventEntry>()
                 ->Version(0)
@@ -44,7 +45,8 @@ namespace OpenParticle
                     ->Value("Play", MotionEventParticleAction::Play)
                     ->Value("Restart", MotionEventParticleAction::Restart)
                     ->Value("Stop", MotionEventParticleAction::Stop)
-                    ->Value("Pause", MotionEventParticleAction::Pause);
+                    ->Value("Pause", MotionEventParticleAction::Pause)
+                    ->Value("StopSpawning", MotionEventParticleAction::StopSpawning);
 
                 editContext->Class<ParticleMotionEventEntry>("Particle Motion Event", "A motion event and what it does to a Particle component.")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
@@ -58,19 +60,21 @@ namespace OpenParticle
                     ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleMotionEventEntry::m_particleEntity, "Particle Entity",
                         "The entity with the Particle component when no name is given; empty uses this entity.")
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &ParticleMotionEventEntry::m_onStart, "On Start",
-                        "What the event's start does (a one-shot event only has a start). Restart replays from the beginning.")
+                        "What the event's start does (a one-shot event only has a start). Restart replays from the beginning; Stop Spawning lets the particles already out fade by their own lifetime.")
                         ->EnumAttribute(MotionEventParticleAction::None, "None")
                         ->EnumAttribute(MotionEventParticleAction::Play, "Play")
                         ->EnumAttribute(MotionEventParticleAction::Restart, "Restart")
                         ->EnumAttribute(MotionEventParticleAction::Stop, "Stop")
                         ->EnumAttribute(MotionEventParticleAction::Pause, "Pause")
+                        ->EnumAttribute(MotionEventParticleAction::StopSpawning, "Stop Spawning")
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &ParticleMotionEventEntry::m_onEnd, "On End",
                         "What the end of a ranged event does.")
                         ->EnumAttribute(MotionEventParticleAction::None, "None")
                         ->EnumAttribute(MotionEventParticleAction::Play, "Play")
                         ->EnumAttribute(MotionEventParticleAction::Restart, "Restart")
                         ->EnumAttribute(MotionEventParticleAction::Stop, "Stop")
-                        ->EnumAttribute(MotionEventParticleAction::Pause, "Pause");
+                        ->EnumAttribute(MotionEventParticleAction::Pause, "Pause")
+                        ->EnumAttribute(MotionEventParticleAction::StopSpawning, "Stop Spawning");
             }
         }
     }
@@ -120,6 +124,7 @@ namespace OpenParticle
 
     void ParticleMotionEventsComponent::Deactivate()
     {
+        m_spawnStopped.clear();
         EMotionFX::Integration::ActorNotificationBus::Handler::BusDisconnect();
     }
 
@@ -170,7 +175,16 @@ namespace OpenParticle
         return AZ::EntityId();
     }
 
-    void ParticleMotionEventsComponent::Apply(const ParticleMotionEventEntry& entry, MotionEventParticleAction action) const
+    void ParticleMotionEventsComponent::ClearSpawnStop(AZ::EntityId target)
+    {
+        // The zeroed spawn rate is an override and would survive Stop and Play, so it is dropped before the particle plays again.
+        if (m_spawnStopped.erase(target) > 0)
+        {
+            ParticleRequestBus::Event(target, &ParticleRequestBus::Events::ClearOverrides);
+        }
+    }
+
+    void ParticleMotionEventsComponent::Apply(const ParticleMotionEventEntry& entry, MotionEventParticleAction action)
     {
         const AZ::EntityId target = ResolveTarget(entry);
         if (!target.IsValid())
@@ -180,9 +194,11 @@ namespace OpenParticle
         switch (action)
         {
         case MotionEventParticleAction::Play:
+            ClearSpawnStop(target);
             ParticleRequestBus::Event(target, &ParticleRequestBus::Events::Play);
             break;
         case MotionEventParticleAction::Restart:
+            ClearSpawnStop(target);
             ParticleRequestBus::Event(target, &ParticleRequestBus::Events::Stop);
             ParticleRequestBus::Event(target, &ParticleRequestBus::Events::Play);
             break;
@@ -191,6 +207,10 @@ namespace OpenParticle
             break;
         case MotionEventParticleAction::Pause:
             ParticleRequestBus::Event(target, &ParticleRequestBus::Events::Pause);
+            break;
+        case MotionEventParticleAction::StopSpawning:
+            ParticleRequestBus::Event(target, &ParticleRequestBus::Events::SetSpawnRate, -1, 0.0f);
+            m_spawnStopped.insert(target);
             break;
         case MotionEventParticleAction::None:
         default:
