@@ -264,7 +264,9 @@ namespace SimuCore::ParticleCore {
                 Particle end = particle[segment.end];
 
                 float curTexV = bTileV ? preTileV : travelingDistance / totalDistance;
-                AZ::Vector3 right = CalRightVector(world, config, segment.tangent0, head.globalPosition);
+                const bool entityAxis = IsEntityAxisFacing(config.facing);
+                AZ::Vector3 right = entityAxis ? EntityAxisVector(head, config.facing)
+                                               : CalRightVector(world, config, segment.tangent0, head.globalPosition);
                 BufferInfo bInfo{head.globalPosition, head.color,
                     right, head.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib};
                 (segmentId == 0) ? FillHeadVertex(bInfo) : FillVertex(bInfo);
@@ -279,13 +281,15 @@ namespace SimuCore::ParticleCore {
                     curTexV = bTileV ? AZStd::lerp(preTileV, segment.tileV, step) :
                             (pos.GetDistance(head.globalPosition) + travelingDistance) / totalDistance;
                     AZ::Vector3 up = segment.tangent0.Lerp(segment.tangent1, step);
-                    right = CalRightVector(world, config, up, head.globalPosition);
+                    right = entityAxis ? EntityAxisVector(head, config.facing).Lerp(EntityAxisVector(end, config.facing), step).GetNormalized()
+                                       : CalRightVector(world, config, up, head.globalPosition);
                     BufferInfo info{pos, color, right, width, vertexIdx, indexIdx, curTexV, vb, ib};
                     FillVertex(info);
                 }
 
                 if (segmentId == iter->second.size() - 1) {
-                    right = CalRightVector(world, config, segment.tangent1, end.globalPosition).GetNormalized();
+                    right = entityAxis ? EntityAxisVector(end, config.facing)
+                                       : CalRightVector(world, config, segment.tangent1, end.globalPosition).GetNormalized();
                     curTexV = bTileV ? segment.tileV : segment.distance / totalDistance;
                     BufferInfo info{end.globalPosition, end.color,
                         right, end.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib};
@@ -357,6 +361,19 @@ namespace SimuCore::ParticleCore {
         info.indexIdx++;
     }
 
+    bool ParticleRibbonRender::IsEntityAxisFacing(RibbonFacing facing)
+    {
+        return facing == RibbonFacing::ENTITY_X || facing == RibbonFacing::ENTITY_Y || facing == RibbonFacing::ENTITY_Z;
+    }
+
+    // the ribbon width runs along this axis of the emitter as it was when the particle spawned, like a blade edge
+    AZ::Vector3 ParticleRibbonRender::EntityAxisVector(const Particle& particle, RibbonFacing facing)
+    {
+        const AZ::Vector3 axis = facing == RibbonFacing::ENTITY_X ? AZ::Vector3::CreateAxisX()
+            : facing == RibbonFacing::ENTITY_Y ? AZ::Vector3::CreateAxisY() : AZ::Vector3::CreateAxisZ();
+        return particle.spawnTrans.TransformVector(axis).GetNormalized();
+    }
+
     AZ::Vector3 ParticleRibbonRender::CalRightVector(const WorldInfo& world, const RibbonConfig& config,
         const AZ::Vector3& up, const AZ::Vector3& position) const
     {
@@ -367,15 +384,6 @@ namespace SimuCore::ParticleCore {
                 break;
             case RibbonFacing::UP:
                 facing = AZ::Vector3::CreateAxisZ();
-                break;
-            case RibbonFacing::ENTITY_X:
-                facing = world.emitterTransform.TransformVector(AZ::Vector3::CreateAxisX());
-                break;
-            case RibbonFacing::ENTITY_Y:
-                facing = world.emitterTransform.TransformVector(AZ::Vector3::CreateAxisY());
-                break;
-            case RibbonFacing::ENTITY_Z:
-                facing = world.emitterTransform.TransformVector(AZ::Vector3::CreateAxisZ());
                 break;
             case RibbonFacing::SCREEN:
             default:

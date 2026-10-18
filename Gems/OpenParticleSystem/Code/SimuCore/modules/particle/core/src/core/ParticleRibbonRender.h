@@ -74,6 +74,9 @@ namespace SimuCore::ParticleCore {
 
         void UpdateBuffer(const WorldInfo& world, const RibbonConfig& config);
 
+        static bool IsEntityAxisFacing(RibbonFacing facing);
+        static AZ::Vector3 EntityAxisVector(const Particle& particle, RibbonFacing facing);
+
         AZ::Vector3 CalRightVector(const WorldInfo& world, const RibbonConfig& config,
             const AZ::Vector3& up, const AZ::Vector3& position) const;
 
