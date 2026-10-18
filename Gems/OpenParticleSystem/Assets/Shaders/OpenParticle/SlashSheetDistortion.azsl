@@ -1,0 +1,67 @@
+#include "SlashSheetCommon.azsli"
+
+// Same declaration as ParticleDistortion.azsl, which is where the pass takes the layout from.
+ShaderResourceGroup PassSrg : SRG_PerPass
+{
+    Texture2D<float4> m_sceneColor;
+
+    Sampler m_sceneSampler
+    {
+        MinFilter = Linear;
+        MagFilter = Linear;
+        MipFilter = Linear;
+        AddressU = Clamp;
+        AddressV = Clamp;
+        AddressW = Clamp;
+    };
+}
+
+struct PixelOutput
+{
+    float4 color : SV_Target0;
+};
+
+PixelOutput MainPS(in SlashVsOutput input)
+{
+    PixelOutput output;
+
+    float alpha = SheetAlpha(input.uv);
+
+    // Direction the sheet brightens in, from finite differences of the sheet alpha in mesh uv space.
+    float2 d = float2(0.01, 0.02);
+    float2 gradient = float2(SheetAlpha(input.uv + float2(d.x, 0)) - SheetAlpha(input.uv - float2(d.x, 0)),
+                             SheetAlpha(input.uv + float2(0, d.y)) - SheetAlpha(input.uv - float2(0, d.y)));
+
+    // The uv gradient is turned into a screen direction through the screen derivatives of the uv.
+    float2 uvDx = ddx(input.uv);
+    float2 uvDy = ddy(input.uv);
+    float det = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+    float2 screenDir = float2(0, 0);
+    if (abs(det) > 1e-12)
+    {
+        float2 pixelGradient = float2(uvDy.y * gradient.x - uvDy.x * gradient.y,
+                                      -uvDx.y * gradient.x + uvDx.x * gradient.y) / det;
+        float len = length(pixelGradient);
+        screenDir = len > 1e-6 ? pixelGradient / len : float2(0, 0);
+    }
+    float2 swirlDir = float2(-screenDir.y, screenDir.x);
+    float2 direction = lerp(screenDir, swirlDir, saturate(MaterialSrg::m_distortSwirl));
+
+    float sceneWidth;
+    float sceneHeight;
+    PassSrg::m_sceneColor.GetDimensions(sceneWidth, sceneHeight);
+    float2 sceneSize = float2(sceneWidth, sceneHeight);
+    float2 screenUv = input.position.xy / sceneSize;
+
+    // Strength is in pixels at 1080p and follows the render resolution.
+    float2 offsetUv = direction * MaterialSrg::m_distortStrength * (sceneHeight / 1080.0) * alpha / sceneSize;
+    float chroma = MaterialSrg::m_distortChromatic;
+
+    float3 scene;
+    scene.r = PassSrg::m_sceneColor.SampleLevel(PassSrg::m_sceneSampler, screenUv + offsetUv * (1.0 + chroma), 0).r;
+    scene.g = PassSrg::m_sceneColor.SampleLevel(PassSrg::m_sceneSampler, screenUv + offsetUv, 0).g;
+    scene.b = PassSrg::m_sceneColor.SampleLevel(PassSrg::m_sceneSampler, screenUv + offsetUv * (1.0 - chroma), 0).b;
+
+    output.color = float4(scene, saturate(alpha * 2.0));
+    return output;
+}

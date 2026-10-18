@@ -1,0 +1,298 @@
+{
+    "description": "Material type for authored slash sheet meshes: a swept, fading streak sheet plus a scene distortion layer. Drive Progress from 0 to 1 to play it.",
+    "version": 1,
+    "propertyLayout": {
+        "groups": [
+            {
+                "name": "general",
+                "displayName": "Playback",
+                "description": "Progress drives the whole sheet; a script animates it from 0 to 1."
+            },
+            {
+                "name": "shape",
+                "displayName": "Sheet Shape",
+                "description": "How the swing reveals and fades the sheet."
+            },
+            {
+                "name": "streaks",
+                "displayName": "Streaks",
+                "description": "The ring masks are mapped onto the sheet as if it were a slice of the ring."
+            },
+            {
+                "name": "distortion",
+                "displayName": "Distortion",
+                "description": "Warps the scene behind the sheet, drawn by the particle distortion pass."
+            }
+        ],
+        "properties": {
+            "general": [
+                {
+                    "name": "progress",
+                    "displayName": "Progress",
+                    "description": "0 hides the sheet, 1 has fully faded out.",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_progress"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "opacity",
+                    "displayName": "Opacity",
+                    "description": "Overall opacity.",
+                    "type": "Float",
+                    "defaultValue": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_opacity"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "tint",
+                    "displayName": "Tint",
+                    "description": "Sheet colour.",
+                    "type": "Color",
+                    "defaultValue": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_tint"
+                    }
+                },
+                {
+                    "name": "glow",
+                    "displayName": "Glow",
+                    "description": "Brightens the sheet colour beyond 1 for HDR bloom.",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_glow"
+                    },
+                    "min": 0.0,
+                    "max": 20.0
+                }
+            ],
+            "shape": [
+                {
+                    "name": "headSoftness",
+                    "displayName": "Head Softness",
+                    "description": "Length of the soft leading edge, in sheet u.",
+                    "type": "Float",
+                    "defaultValue": 0.12,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_headSoftness"
+                    },
+                    "min": 0.001,
+                    "max": 1.0
+                },
+                {
+                    "name": "tailLength",
+                    "displayName": "Tail Length",
+                    "description": "How far the bright part trails behind the head, in sheet u.",
+                    "type": "Float",
+                    "defaultValue": 0.55,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_tailLength"
+                    },
+                    "min": 0.001,
+                    "max": 2.0
+                },
+                {
+                    "name": "fadeStart",
+                    "displayName": "Fade Start",
+                    "description": "Progress at which the whole sheet starts fading out.",
+                    "type": "Float",
+                    "defaultValue": 0.7,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_fadeStart"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "edgeSoftness",
+                    "displayName": "Edge Softness",
+                    "description": "Fade at the inner and outer edge, in sheet v.",
+                    "type": "Float",
+                    "defaultValue": 0.18,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeSoftness"
+                    },
+                    "min": 0.001,
+                    "max": 0.5
+                },
+                {
+                    "name": "expand",
+                    "displayName": "Expand",
+                    "description": "Horizontal growth of the sheet over the playback.",
+                    "type": "Float",
+                    "defaultValue": 0.25,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_expand"
+                    },
+                    "min": 0.0,
+                    "max": 4.0
+                }
+            ],
+            "streaks": [
+                {
+                    "name": "maskMap",
+                    "displayName": "Mask Map",
+                    "description": "Alpha streak mask, a ring texture.",
+                    "type": "image",
+                    "defaultValue": "Textures/OpenParticle/SlashBlank_basecolora.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMap"
+                    }
+                },
+                {
+                    "name": "detailMap",
+                    "displayName": "Detail Map",
+                    "description": "Second ring mask merged with the first.",
+                    "type": "image",
+                    "defaultValue": "Textures/OpenParticle/SlashBlank_basecolora.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_detailMap"
+                    }
+                },
+                {
+                    "name": "detailWeight",
+                    "displayName": "Detail Weight",
+                    "description": "Strength of the detail map.",
+                    "type": "Float",
+                    "defaultValue": 0.7,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_detailWeight"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "ringInner",
+                    "displayName": "Ring Inner Radius",
+                    "description": "Radius in the ring texture the inner edge samples, 0.5 is the texture edge.",
+                    "type": "Float",
+                    "defaultValue": 0.27,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_ringInner"
+                    },
+                    "min": 0.0,
+                    "max": 0.5
+                },
+                {
+                    "name": "ringOuter",
+                    "displayName": "Ring Outer Radius",
+                    "description": "Radius in the ring texture the outer edge samples.",
+                    "type": "Float",
+                    "defaultValue": 0.47,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_ringOuter"
+                    },
+                    "min": 0.0,
+                    "max": 0.5
+                },
+                {
+                    "name": "arcSpan",
+                    "displayName": "Arc Span",
+                    "description": "Angle of the ring texture covered by the sheet, in radians; match it to the mesh.",
+                    "type": "Float",
+                    "defaultValue": 3.84,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_arcSpan"
+                    },
+                    "min": 0.1,
+                    "max": 6.2831
+                },
+                {
+                    "name": "spin",
+                    "displayName": "Spin",
+                    "description": "Turns the streaks rotate over the playback.",
+                    "type": "Float",
+                    "defaultValue": 0.15,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_spin"
+                    },
+                    "min": -4.0,
+                    "max": 4.0
+                }
+            ],
+            "distortion": [
+                {
+                    "name": "distortStrength",
+                    "displayName": "Strength",
+                    "description": "Largest warp in pixels at 1080p; 0 disables the warp.",
+                    "type": "Float",
+                    "defaultValue": 30.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortStrength"
+                    },
+                    "min": 0.0,
+                    "max": 300.0
+                },
+                {
+                    "name": "distortSwirl",
+                    "displayName": "Swirl",
+                    "description": "0 pushes the scene along the sheet gradient, 1 turns it around the streaks.",
+                    "type": "Float",
+                    "defaultValue": 0.3,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortSwirl"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                {
+                    "name": "distortChromatic",
+                    "displayName": "Chromatic Split",
+                    "description": "Colour channels are warped by slightly different amounts.",
+                    "type": "Float",
+                    "defaultValue": 0.15,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortChromatic"
+                    },
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            ]
+        }
+    },
+    "shaders": [
+        {
+            "file": "Shaders/OpenParticle/SlashSheet.shader",
+            "tag": "SlashSheetForward"
+        },
+        {
+            "file": "Shaders/OpenParticle/SlashSheetDistortion.shader",
+            "tag": "SlashSheetDistortion"
+        }
+    ],
+    "functors": [],
+    "uvNameMap": {
+        "UV0": "Tiled",
+        "UV1": "Unwrapped"
+    }
+}

@@ -1,0 +1,102 @@
+#pragma once
+
+#include <viewsrg_all.srgi>
+#include <scenesrg_all.srgi>
+
+#define PIPELINE_HAS_PASS_SRG 0
+
+#include <Atom/Features/SrgSemantics.azsli>
+#include <Atom/RPI/ShaderResourceGroups/DefaultDrawSrg.azsli>
+#include <Atom/Features/PBR/DefaultObjectSrg.azsli>
+#include <Atom/Features/Pipeline/Forward/ForwardPassVertexData.azsli>
+#include <Atom/Features/Pipeline/Forward/ForwardPassPipelineCallbacks.azsli>
+
+// Both shaders of the slash sheet material share this declaration, so it has to stay identical for them.
+ShaderResourceGroup MaterialSrg : SRG_PerMaterial
+{
+    Texture2D m_maskMap;
+    Texture2D m_detailMap;
+
+    float m_progress;
+    float m_opacity;
+    float m_headSoftness;
+    float m_tailLength;
+    float m_fadeStart;
+    float m_edgeSoftness;
+    float m_ringInner;
+    float m_ringOuter;
+    float m_arcSpan;
+    float m_spin;
+    float m_expand;
+    float m_glow;
+    float m_detailWeight;
+    float m_distortStrength;
+    float m_distortSwirl;
+    float m_distortChromatic;
+    float3 m_tint;
+
+    Sampler m_sampler
+    {
+        MinFilter = Linear;
+        MagFilter = Linear;
+        MipFilter = Linear;
+        AddressU = Clamp;
+        AddressV = Clamp;
+        AddressW = Clamp;
+    };
+}
+
+struct SlashVsInput
+{
+    float3 position : POSITION;
+    float2 uv : UV0;
+};
+
+struct SlashVsOutput
+{
+    float4 position : SV_Position;
+    float2 uv : UV0;
+};
+
+SlashVsOutput MainVS(in SlashVsInput input, uint instanceId : SV_InstanceID)
+{
+    SlashVsOutput output;
+    VsSystemValues SV;
+    SV.m_instanceId = instanceId;
+
+    // The sheet grows outwards while it plays, in the mesh's own horizontal plane.
+    float3 localPosition = input.position;
+    localPosition.xy *= 1.0 + MaterialSrg::m_expand * MaterialSrg::m_progress;
+
+    float4 worldPosition = mul(GetObjectToWorldMatrix(SV), float4(localPosition, 1.0));
+    output.position = mul(ViewSrg::m_viewProjectionMatrix, worldPosition);
+    output.uv = input.uv;
+    return output;
+}
+
+// The ring masks are drawn as if the sheet were a slice of the ring, so a sweep keeps the streak look of the texture.
+float2 PolarMaskUv(float2 uv)
+{
+    float angle = (uv.x - 0.5) * MaterialSrg::m_arcSpan + MaterialSrg::m_spin * MaterialSrg::m_progress * 6.2831853;
+    float radius = lerp(MaterialSrg::m_ringInner, MaterialSrg::m_ringOuter, uv.y);
+    return 0.5 + radius * float2(cos(angle), sin(angle));
+}
+
+// Alpha of the whole sheet at a point of the mesh uv; u runs along the swing, v from the inner to the outer edge.
+float SheetAlpha(float2 uv)
+{
+    float2 maskUv = PolarMaskUv(uv);
+    float mask = MaterialSrg::m_maskMap.SampleLevel(MaterialSrg::m_sampler, maskUv, 0).a;
+    float detail = MaterialSrg::m_detailMap.SampleLevel(MaterialSrg::m_sampler, maskUv, 0).a;
+    mask = saturate(max(mask, detail * MaterialSrg::m_detailWeight));
+
+    // The head sweeps from u = 0 to the far end and leaves a fading tail behind it.
+    float tail = max(MaterialSrg::m_tailLength, 0.001);
+    float head = MaterialSrg::m_progress * (1.0 + tail);
+    float behind = head - uv.x;
+    float sweep = saturate(behind / max(MaterialSrg::m_headSoftness, 0.001)) * saturate(1.0 - behind / tail);
+
+    float edge = smoothstep(0.0, MaterialSrg::m_edgeSoftness, uv.y) * smoothstep(0.0, MaterialSrg::m_edgeSoftness, 1.0 - uv.y);
+    float fade = 1.0 - smoothstep(MaterialSrg::m_fadeStart, 1.0, MaterialSrg::m_progress);
+    return mask * sweep * edge * fade * MaterialSrg::m_opacity;
+}

@@ -1,0 +1,14 @@
+#include "SlashSheetCommon.azsli"
+
+struct PixelOutput
+{
+    float4 color : SV_Target0;
+};
+
+PixelOutput MainPS(in SlashVsOutput input)
+{
+    PixelOutput output;
+    float alpha = SheetAlpha(input.uv);
+    output.color = float4(MaterialSrg::m_tint * (1.0 + MaterialSrg::m_glow), alpha);
+    return output;
+}
