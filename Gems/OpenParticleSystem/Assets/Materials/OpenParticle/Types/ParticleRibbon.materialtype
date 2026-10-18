@@ -69,7 +69,12 @@
             {
                 "name": "edge",
                 "displayName": "Edge, Core And Glow",
-                "description": "Soft sides, a bright line down the middle and an overall glow."
+                "description": "Soft sides, a bright line down the middle, a rim band and an overall glow."
+            },
+            {
+                "name": "distortion",
+                "displayName": "Distortion",
+                "description": "Warps the scene behind the ribbon like heat or glass, drawn by the particle distortion pass. Strength 0 turns the pass off for this material."
             }
         ],
         "properties": {
@@ -372,6 +377,64 @@
                     }
                 },
                 {
+                    "name": "rimColor",
+                    "displayName": "Rim Color",
+                    "description": "Colour of the solid band along the side of the ribbon.",
+                    "type": "Color",
+                    "defaultValue": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rimColor"
+                    }
+                },
+                {
+                    "name": "rimIntensity",
+                    "displayName": "Rim Intensity",
+                    "description": "Brightness and opacity of the rim band, like the bright leading edge of a slash. 0 turns it off.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 20.0,
+                    "softMax": 6.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rimIntensity"
+                    }
+                },
+                {
+                    "name": "rimWidth",
+                    "displayName": "Rim Width",
+                    "description": "Width of the rim band as a fraction of the ribbon width.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.12,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rimWidth"
+                    }
+                },
+                {
+                    "name": "rimSide",
+                    "displayName": "Rim Side",
+                    "description": "Which side of the ribbon carries the rim. Start is u = 0 and End is u = 1; which one is the blade tip depends on the ribbon width axis.",
+                    "type": "Enum",
+                    "enumValues": [
+                        "Both",
+                        "Start",
+                        "End"
+                    ],
+                    "defaultValue": "End",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rimSide"
+                    }
+                },
+                {
                     "name": "glow",
                     "displayName": "Glow",
                     "description": "Multiplies the whole ribbon colour; above 1 it blooms.",
@@ -383,6 +446,48 @@
                     "connection": {
                         "type": "ShaderInput",
                         "name": "m_glow"
+                    }
+                }
+            ],
+            "distortion": [
+                {
+                    "name": "strength",
+                    "displayName": "Strength",
+                    "description": "Largest warp in pixels at 1080p; 0 disables the warp and its draw.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 300.0,
+                    "softMax": 120.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortStrength"
+                    }
+                },
+                {
+                    "name": "swirl",
+                    "displayName": "Swirl",
+                    "description": "0 pushes the scene along the ribbon gradient, 1 turns it around the streaks.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.4,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortSwirl"
+                    }
+                },
+                {
+                    "name": "chromatic",
+                    "displayName": "Chromatic Split",
+                    "description": "Splits the colour channels of the warped scene for a glassy fringe.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.1,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortChromatic"
                     }
                 }
             ],
@@ -513,6 +618,10 @@
         {
             "file": "Shaders/OpenParticle/ParticleRibbon.shader",
             "tag": "ForwardPass"
+        },
+        {
+            "file": "Shaders/OpenParticle/ParticleRibbonDistortion.shader",
+            "tag": "RibbonDistortion"
         }
     ],
     "functors": [
@@ -544,6 +653,12 @@
             "type": "Lua",
             "args": {
                 "file": "Shaders/OpenParticle/Particle_HandleBlendMode.lua"
+            }
+        },
+        {
+            "type": "Lua",
+            "args": {
+                "file": "Shaders/OpenParticle/Particle_RibbonDistortionEnable.lua"
             }
         },
         {
