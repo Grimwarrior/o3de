@@ -104,7 +104,9 @@ namespace SimuCore::ParticleCore {
         SCREEN,
         CAMERA,
         UP,
-        ENTITY
+        ENTITY_Z,
+        ENTITY_X,
+        ENTITY_Y
     };
 
     enum class DrawType : AZ::u8 {

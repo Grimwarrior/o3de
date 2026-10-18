@@ -261,11 +261,7 @@ namespace OpenParticleSystemEditor
 
     const OpenParticleSystem::CameraTransform& OpenParticleViewportRenderer::GetParticleEditorCameraTransform()
     {
-        m_cameraTransform.m_valid = m_active;
-        if (m_active)
-        {
-            AZ::TransformBus::EventResult(m_cameraTransform.m_transform, m_cameraEntity->GetId(), &AZ::TransformBus::Events::GetWorldTM);
-        }
+        // Called from simulation job threads, so it only returns the transform cached in OnTick.
         return m_cameraTransform;
     }
 
@@ -398,6 +394,13 @@ namespace OpenParticleSystemEditor
 
     void OpenParticleViewportRenderer::OnTick([[maybe_unused]] float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)
     {
+        // The particle simulation reads this cache from job threads, and TransformBus is not thread safe, so it is refreshed here on the main thread.
+        m_cameraTransform.m_valid = m_active && m_cameraEntity;
+        if (m_cameraTransform.m_valid)
+        {
+            AZ::TransformBus::EventResult(m_cameraTransform.m_transform, m_cameraEntity->GetId(), &AZ::TransformBus::Events::GetWorldTM);
+        }
+
         if (!m_renderPipeline)
         {
             return;
