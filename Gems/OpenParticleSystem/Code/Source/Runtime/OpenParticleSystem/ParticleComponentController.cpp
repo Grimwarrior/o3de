@@ -188,6 +188,72 @@ namespace OpenParticle
         return m_isVisible;
     }
 
+    template<typename Edit>
+    void ParticleComponentController::EditOverrides(Edit&& edit)
+    {
+        edit(m_overrides);
+        if (m_particleHandle.IsValid())
+        {
+            m_particleHandle->EditOverrides(edit);
+        }
+    }
+
+    void ParticleComponentController::SetLooping(int emitterIndex, bool loop)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_loop, loop); });
+    }
+
+    void ParticleComponentController::SetSpawnRate(int emitterIndex, float particlesPerSecond)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_spawnRate, particlesPerSecond); });
+    }
+
+    void ParticleComponentController::SetLifetime(int emitterIndex, float seconds)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_lifetime, seconds); });
+    }
+
+    void ParticleComponentController::SetSize(int emitterIndex, const AZ::Vector3& size)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_size, size); });
+    }
+
+    void ParticleComponentController::SetColor(int emitterIndex, const AZ::Color& color)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_color, color); });
+    }
+
+    void ParticleComponentController::SetForce(int emitterIndex, const AZ::Vector3& force)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_force, force); });
+    }
+
+    void ParticleComponentController::SetFlipbookFps(int emitterIndex, float framesPerSecond)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.Set(emitterIndex, &EmitterOverrides::m_flipbookFps, framesPerSecond); });
+    }
+
+    void ParticleComponentController::SetPlaybackSpeed(float speed)
+    {
+        EditOverrides([&](ParticleOverrides& o) { o.m_playbackSpeed.Set(speed); });
+    }
+
+    void ParticleComponentController::ClearOverrides()
+    {
+        m_overrides = ParticleOverrides{};
+        if (m_particleHandle.IsValid())
+        {
+            // Effector data was written in place, so the asset values only come back by rebuilding the simulation.
+            const ParticleStatus status = m_particleHandle->m_status;
+            Deregister();
+            Register();
+            if (m_particleHandle.IsValid())
+            {
+                m_particleHandle->m_status = status;
+            }
+        }
+    }
+
     void ParticleComponentController::SetParticleAsset(AZ::Data::Asset<ParticleAsset> particleAsset, bool inParticleEditor)
     {
         Deregister();
@@ -249,6 +315,10 @@ namespace OpenParticle
             AZ::NonUniformScaleRequestBus::EventResult(nonUniformScale, m_entityId, &AZ::NonUniformScaleRequestBus::Events::GetScale);
             m_featureProcessor->SetTransform(m_particleHandle, transform, nonUniformScale);
             m_particleHandle->m_visible = m_isVisible;
+            if (!m_overrides.IsEmpty())
+            {
+                m_particleHandle->EditOverrides([this](ParticleOverrides& o) { o = m_overrides; });
+            }
             m_particleHandle->m_enable = m_configuration.m_enable;
             if (m_configuration.m_autoPlay) {
                 m_particleHandle->m_status = ParticleStatus::PLAYING;

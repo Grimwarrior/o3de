@@ -9,6 +9,7 @@
 #pragma once
 
 #include <OpenParticleSystem/ParticleComponentConfig.h>
+#include <OpenParticleSystem/ParticleOverrides.h>
 
 #include <Atom/Feature/CoreLights/SimplePointLightFeatureProcessorInterface.h>
 #include <Atom/Feature/TransformService/TransformServiceFeatureProcessorInterface.h>
@@ -71,6 +72,8 @@ namespace OpenParticle
 
         void SetMaterialDiffuseMap(AZ::u32 emitterIndex, AZStd::string mapPath);
 
+        void ApplyOverrides(const ParticleOverrides& overrides);
+
         void OnAssetReady(AZ::Data::Asset<AZ::Data::AssetData> asset) override;
 
     private:
@@ -115,6 +118,7 @@ namespace OpenParticle
             AZStd::vector<AZ::Render::SimplePointLightFeatureProcessorInterface::LightHandle>> lightHandles;
         AZStd::vector<AZ::RHI::ConstPtr<AZ::RHI::DrawPacket>> m_drawPacket;
 
+        float m_timeScale = 1.0f;
         bool m_changedDiffuseMap;
         AZStd::unordered_map<AZ::u32, AZ::RPI::MaterialPropertyValue> m_diffuseMapInstances;
         AZStd::unordered_map<AZ::u32, AZStd::vector<AZ::Vector3>> m_boneStreams;

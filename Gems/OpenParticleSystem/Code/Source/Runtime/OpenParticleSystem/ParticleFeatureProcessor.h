@@ -22,6 +22,9 @@
 #include <AzCore/std/containers/array.h>
 #include <AzCore/std/chrono/chrono.h>
 #include <AzCore/Component/TickBus.h>
+#include <AzCore/std/parallel/atomic.h>
+#include <AzCore/std/parallel/lock.h>
+#include <AzCore/std/parallel/mutex.h>
 
 #include <OpenParticleSystem/Asset/ParticleAsset.h>
 #include <OpenParticleSystem/ParticleFeatureProcessorInterface.h>
@@ -58,6 +61,15 @@ namespace OpenParticle
         void SetMaterialDiffuseMap(AZ::u32 emitterIndex, AZStd::string mapPath);
         void SetRuntimeConfig(ParticleComponentConfig config) { m_rtConfig = config; };
 
+        //! Edits the pending overrides under the lock; Simulate applies them on its next tick.
+        template<typename Edit>
+        void EditOverrides(Edit&& edit)
+        {
+            AZStd::lock_guard<AZStd::mutex> lock(m_overridesMutex);
+            edit(m_overrides);
+            m_overridesDirty.store(true, AZStd::memory_order_release);
+        }
+
         ParticleFeatureProcessor* m_particleFp = nullptr;
         AZ::RPI::Scene* m_scene = nullptr;
         AZ::Data::Asset<ParticleAsset> m_particleAsset;
@@ -72,6 +84,9 @@ namespace OpenParticle
 
     private:
         ParticleComponentConfig m_rtConfig;
+        ParticleOverrides m_overrides;
+        AZStd::mutex m_overridesMutex;
+        AZStd::atomic<bool> m_overridesDirty{ false };
     };
 
     class ParticleFeatureProcessor final

@@ -120,6 +120,12 @@ namespace OpenParticle
         m_particleInstance->PostLoad();
         m_particleInstance->SetTransform(m_transform);
 
+        {
+            // A reloaded asset builds a fresh simulation, so stored overrides are applied to it again.
+            AZStd::lock_guard<AZStd::mutex> lock(m_overridesMutex);
+            m_overridesDirty.store(!m_overrides.IsEmpty(), AZStd::memory_order_relaxed);
+        }
+
         if (m_status == ParticleStatus::EMPTY)
         {
             m_status = ParticleStatus::LOADED;
@@ -155,6 +161,12 @@ namespace OpenParticle
     {
         if (m_particleInstance)
         {
+            if (m_overridesDirty.load(AZStd::memory_order_acquire))
+            {
+                AZStd::lock_guard<AZStd::mutex> lock(m_overridesMutex);
+                m_particleInstance->ApplyOverrides(m_overrides);
+                m_overridesDirty.store(false, AZStd::memory_order_relaxed);
+            }
             m_particleInstance->Tick(delta);
         }
     }

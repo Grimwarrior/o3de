@@ -31,6 +31,8 @@ set(FILES
         Source/Runtime/OpenParticleSystem/ParticleConstant.h
         Source/Runtime/OpenParticleSystem/ParticleFeatureProcessor.h
         Source/Runtime/OpenParticleSystem/ParticleFeatureProcessor.cpp
+        Source/Runtime/OpenParticleSystem/ParticleOverrides.h
+        Source/Runtime/OpenParticleSystem/ParticleOverrides.cpp
         Source/Runtime/OpenParticleSystem/ParticleSystem.h
         Source/Runtime/OpenParticleSystem/ParticleSystem.cpp
         Source/Runtime/OpenParticleSystem/ParticlePipelineState.h

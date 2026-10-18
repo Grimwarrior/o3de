@@ -9,6 +9,8 @@
 #pragma once
 
 #include <AzCore/Component/ComponentBus.h>
+#include <AzCore/Math/Color.h>
+#include <AzCore/Math/Vector3.h>
 
 namespace OpenParticle
 {
@@ -32,6 +34,35 @@ namespace OpenParticle
         //! Retrieves the current visibility state of the particle system.
         //! \return true if the particle system is visible; false otherwise.
         virtual bool GetVisibility() const = 0;
+
+        //! Runtime overrides write into the instance's own effector data (no per-particle cost) and survive Stop/Play; emitterIndex -1 means every emitter.
+
+        //! Turns emitter looping on or off; a non-looping emitter plays once and Stop then Play replays it.
+        virtual void SetLooping(int emitterIndex, bool loop) = 0;
+
+        //! Particles spawned per second, replacing any curve or random value from the asset.
+        virtual void SetSpawnRate(int emitterIndex, float particlesPerSecond) = 0;
+
+        //! Lifetime in seconds for particles spawned from now on.
+        virtual void SetLifetime(int emitterIndex, float seconds) = 0;
+
+        //! Size of particles spawned from now on.
+        virtual void SetSize(int emitterIndex, const AZ::Vector3& size) = 0;
+
+        //! Particle colour; an alpha curve from the asset is kept and only rgb is replaced.
+        virtual void SetColor(int emitterIndex, const AZ::Color& color) = 0;
+
+        //! Constant force such as gravity or wind.
+        virtual void SetForce(int emitterIndex, const AZ::Vector3& force) = 0;
+
+        //! Flipbook (SubUV) playback rate in frames per second.
+        virtual void SetFlipbookFps(int emitterIndex, float framesPerSecond) = 0;
+
+        //! Simulation speed for the whole system, 1 is normal and 0.5 is slow motion.
+        virtual void SetPlaybackSpeed(float speed) = 0;
+
+        //! Drops every runtime override and restores the asset values by restarting the system.
+        virtual void ClearOverrides() = 0;
     };
 
     using ParticleRequestBus = AZ::EBus<ParticleRequest>;

@@ -161,6 +161,15 @@ namespace OpenParticle
         return true;
     }
 
+    void ParticleSystem::ApplyOverrides(const ParticleOverrides& overrides)
+    {
+        m_timeScale = overrides.m_playbackSpeed.m_set ? overrides.m_playbackSpeed.m_value : 1.0f;
+        if (m_particleSystem)
+        {
+            overrides.Apply(*m_particleSystem);
+        }
+    }
+
     void ParticleSystem::Tick(float delta)
     {
         if (!m_particleSystem || m_particleSystem->GetAllEmitters().size() == 0)
@@ -191,7 +200,7 @@ namespace OpenParticle
                                           m_rtConfig.m_followActiveCamera ? m_rtSysTransform : m_transform,
                                           -AZ::Vector3::CreateAxisY());
 
-        m_particleSystem->Simulate(delta);
+        m_particleSystem->Simulate(delta * m_timeScale);
 
         if (m_changedDiffuseMap)
         {

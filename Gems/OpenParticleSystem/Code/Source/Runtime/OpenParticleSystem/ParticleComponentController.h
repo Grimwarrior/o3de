@@ -16,6 +16,7 @@
 #include <OpenParticleSystem/ParticleFeatureProcessorInterface.h>
 
 #include <OpenParticleSystem/ParticleComponentConfig.h>
+#include <OpenParticleSystem/ParticleOverrides.h>
 
 namespace OpenParticle
 {
@@ -54,6 +55,18 @@ namespace OpenParticle
         void Stop() override;
         void SetVisibility(bool visible) override;
         bool GetVisibility() const override;
+        void SetLooping(int emitterIndex, bool loop) override;
+        void SetSpawnRate(int emitterIndex, float particlesPerSecond) override;
+        void SetLifetime(int emitterIndex, float seconds) override;
+        void SetSize(int emitterIndex, const AZ::Vector3& size) override;
+        void SetColor(int emitterIndex, const AZ::Color& color) override;
+        void SetForce(int emitterIndex, const AZ::Vector3& force) override;
+        void SetFlipbookFps(int emitterIndex, float framesPerSecond) override;
+        void SetPlaybackSpeed(float speed) override;
+        void ClearOverrides() override;
+
+        template<typename Edit>
+        void EditOverrides(Edit&& edit);
 
         void SetParticleAsset(AZ::Data::Asset<ParticleAsset> particleAsset, bool inParticleEditor);
         void SetParticleAssetByPath(AZStd::string path);
@@ -79,5 +92,6 @@ namespace OpenParticle
         ParticleFeatureProcessorInterface* m_featureProcessor = nullptr;
         ParticleFeatureProcessorInterface::ParticleHandle m_particleHandle;
         bool m_isVisible = true;
+        ParticleOverrides m_overrides;
     };
 }
