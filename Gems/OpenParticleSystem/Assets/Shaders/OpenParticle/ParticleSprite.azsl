@@ -20,6 +20,11 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     Texture2D m_baseColorMap;
     float m_alphaCutoff;
 
+    float3      m_baseColorTint;
+    float       m_opacityFactor;
+    float2      m_uvOffset;
+    float2      m_uvTiling;
+
     float3      m_emissiveColor;
     float       m_emissiveIntensity;
     Texture2D   m_emissiveMap;
@@ -148,7 +153,11 @@ struct PixelOutput
 PixelOutput MainPS(in VertexOutput input)
 {
     PixelOutput output;
-    output.color = input.color * MaterialSrg::m_baseColorMap.Sample(MaterialSrg::m_sampler, input.uv);
+    // Per-emitter material overrides: uv offset and tiling pick a region of a shared sheet, the tint and opacity recolour it.
+    float2 baseUv = input.uv * MaterialSrg::m_uvTiling + MaterialSrg::m_uvOffset;
+    output.color = input.color * MaterialSrg::m_baseColorMap.Sample(MaterialSrg::m_sampler, baseUv);
+    output.color.rgb *= MaterialSrg::m_baseColorTint;
+    output.color.a *= MaterialSrg::m_opacityFactor;
     float2 emissiveUv = uvs[MaterialSrg::m_emissiveMapUvIndex];
     float3 emissiveValue = GetEmissiveInput(MaterialSrg::m_emissiveMap, MaterialSrg::m_sampler, input.uv,
         MaterialSrg::m_emissiveIntensity, MaterialSrg::m_emissiveColor.rgb, o_emissiveEnabled, o_emissive_useTexture);
