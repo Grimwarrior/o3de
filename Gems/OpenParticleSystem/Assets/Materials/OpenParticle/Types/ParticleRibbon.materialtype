@@ -50,6 +50,26 @@
                 "name": "general",
                 "displayName": "General Settings",
                 "description": "General Settings."
+            },
+            {
+                "name": "pattern",
+                "displayName": "Pattern",
+                "description": "A scrolling mask that thins the ribbon and warps its texture. u runs across the ribbon and v along it."
+            },
+            {
+                "name": "dissolve",
+                "displayName": "Dissolve",
+                "description": "Lets the ribbon break up through the mask as it ages, instead of fading flat."
+            },
+            {
+                "name": "ramp",
+                "displayName": "Gradient",
+                "description": "A colour gradient along the ribbon, across it or by the mask."
+            },
+            {
+                "name": "edge",
+                "displayName": "Edge, Core And Glow",
+                "description": "Soft sides, a bright line down the middle and an overall glow."
             }
         ],
         "properties": {
@@ -113,6 +133,230 @@
                     "connection": {
                         "type": "ShaderInput",
                         "name": "m_uvTiling"
+                    }
+                }
+            ],
+            "pattern": [
+                {
+                    "name": "uvScroll",
+                    "displayName": "Base Scroll",
+                    "description": "Scrolls the base texture, in uv units per second. Along the ribbon is the second value.",
+                    "type": "Vector2",
+                    "defaultValue": [
+                        0.0,
+                        0.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_uvScroll"
+                    }
+                },
+                {
+                    "name": "maskMap",
+                    "displayName": "Mask Map",
+                    "description": "Grey or alpha pattern (red times alpha). Tiles and scrolls on its own.",
+                    "type": "Image",
+                    "defaultValue": "Textures/OpenParticle/RibbonNoise_greyscale.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMap"
+                    }
+                },
+                {
+                    "name": "maskTiling",
+                    "displayName": "Mask Tiling",
+                    "description": "Repeats of the mask across the ribbon (first) and along it (second).",
+                    "type": "Vector2",
+                    "defaultValue": [
+                        1.0,
+                        1.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskTiling"
+                    }
+                },
+                {
+                    "name": "maskScroll",
+                    "displayName": "Mask Scroll",
+                    "description": "Scrolls the mask, in uv units per second. A negative second value flows from the head to the tail.",
+                    "type": "Vector2",
+                    "defaultValue": [
+                        0.0,
+                        0.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskScroll"
+                    }
+                },
+                {
+                    "name": "maskStrength",
+                    "displayName": "Mask Strength",
+                    "description": "How much the mask multiplies the opacity: 0 ignores it, 1 cuts the ribbon to the pattern.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskStrength"
+                    }
+                },
+                {
+                    "name": "warpStrength",
+                    "displayName": "Warp Strength",
+                    "description": "How far the mask pushes the base texture around, in uv units. 0 turns the warp off.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 2.0,
+                    "softMax": 0.5,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_warpStrength"
+                    }
+                }
+            ],
+            "dissolve": [
+                {
+                    "name": "amount",
+                    "displayName": "Amount",
+                    "description": "0 fades the ribbon with its age as before. 1 moves the fade into the mask, so the ribbon breaks up instead.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_dissolve"
+                    }
+                },
+                {
+                    "name": "softness",
+                    "displayName": "Softness",
+                    "description": "Width of the soft edge of the breaking-up pattern.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.15,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_dissolveSoftness"
+                    }
+                }
+            ],
+            "ramp": [
+                {
+                    "name": "map",
+                    "displayName": "Ramp Map",
+                    "description": "Gradient read left to right; the colour and alpha multiply the ribbon.",
+                    "type": "Image",
+                    "defaultValue": "Textures/OpenParticle/RibbonWhite.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rampMap"
+                    }
+                },
+                {
+                    "name": "mix",
+                    "displayName": "Mix",
+                    "description": "0 ignores the ramp, 1 applies it fully.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rampMix"
+                    }
+                },
+                {
+                    "name": "source",
+                    "displayName": "Source",
+                    "description": "What picks the point on the ramp.",
+                    "type": "Enum",
+                    "enumValues": [
+                        "Length",
+                        "Width",
+                        "Mask"
+                    ],
+                    "defaultValue": "Length",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rampSource"
+                    }
+                }
+            ],
+            "edge": [
+                {
+                    "name": "softness",
+                    "displayName": "Edge Softness",
+                    "description": "Fades the sides of the ribbon, 0 keeps them hard and 1 fades from the middle.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeSoftness"
+                    }
+                },
+                {
+                    "name": "coreColor",
+                    "displayName": "Core Color",
+                    "description": "Colour of the bright line down the middle of the ribbon.",
+                    "type": "Color",
+                    "defaultValue": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_coreColor"
+                    }
+                },
+                {
+                    "name": "coreIntensity",
+                    "displayName": "Core Intensity",
+                    "description": "Strength of the core line; above 1 it blooms. 0 turns it off.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 20.0,
+                    "softMax": 6.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_coreIntensity"
+                    }
+                },
+                {
+                    "name": "corePower",
+                    "displayName": "Core Sharpness",
+                    "description": "Higher values squeeze the core into a thinner line.",
+                    "type": "Float",
+                    "min": 0.1,
+                    "max": 32.0,
+                    "softMax": 8.0,
+                    "defaultValue": 3.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_corePower"
+                    }
+                },
+                {
+                    "name": "glow",
+                    "displayName": "Glow",
+                    "description": "Multiplies the whole ribbon colour; above 1 it blooms.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 20.0,
+                    "softMax": 6.0,
+                    "defaultValue": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_glow"
                     }
                 }
             ],

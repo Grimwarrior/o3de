@@ -1,0 +1,20 @@
+{
+    "materialType": "Types/ParticleRibbon.materialtype",
+    "materialTypeVersion": 3,
+    "propertyValues": {
+        "general.DiffuseMap": "@gemroot:OpenParticleSystem@/Assets/Textures/OpenParticle/RibbonWhite.png",
+        "general.baseColorTint": [ 0.45, 0.75, 1.0 ],
+        "pattern.maskMap": "@gemroot:OpenParticleSystem@/Assets/Textures/OpenParticle/RibbonStreaks_greyscale.png",
+        "pattern.maskTiling": [ 1.0, 2.0 ],
+        "pattern.maskScroll": [ 0.0, -2.0 ],
+        "pattern.maskStrength": 0.85,
+        "dissolve.amount": 0.6,
+        "dissolve.softness": 0.2,
+        "edge.softness": 0.55,
+        "edge.coreColor": [ 0.85, 0.95, 1.0 ],
+        "edge.coreIntensity": 1.5,
+        "edge.corePower": 4.0,
+        "edge.glow": 2.5,
+        "blend.mode": "Additive"
+    }
+}
