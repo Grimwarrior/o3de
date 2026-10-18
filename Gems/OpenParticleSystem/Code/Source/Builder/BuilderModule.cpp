@@ -8,6 +8,7 @@
 
 #include "BuilderComponent.h"
 #include <OpenParticleSystem/ParticleComponent.h>
+#include <OpenParticleSystem/ParticleMotionEventsComponent.h>
 #include <AzCore/Module/Module.h>
 #include <AzCore/RTTI/RTTI.h>
 #include <Editor/EditorParticleComponent.h>
@@ -24,6 +25,7 @@ namespace OpenParticle
         {
             m_descriptors.push_back(BuilderComponent::CreateDescriptor());
             m_descriptors.push_back(ParticleComponent::CreateDescriptor());
+            m_descriptors.push_back(ParticleMotionEventsComponent::CreateDescriptor());
             m_descriptors.push_back(EditorParticleComponent::CreateDescriptor());
         }
 

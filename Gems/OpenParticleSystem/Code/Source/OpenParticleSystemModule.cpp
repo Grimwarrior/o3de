@@ -10,6 +10,7 @@
 #include "OpenParticleSystemSystemComponent.h"
 #include <OpenParticleSystem/SystemComponent.h>
 #include <OpenParticleSystem/ParticleComponent.h>
+#include <OpenParticleSystem/ParticleMotionEventsComponent.h>
 namespace OpenParticleSystem
 {
     class OpenParticleSystemModule
@@ -28,6 +29,7 @@ namespace OpenParticleSystem
             m_descriptors.insert(m_descriptors.end(), {
                 OpenParticle::SystemComponent::CreateDescriptor(),
                 OpenParticle::ParticleComponent::CreateDescriptor(),
+                OpenParticle::ParticleMotionEventsComponent::CreateDescriptor(),
             });
         }
 

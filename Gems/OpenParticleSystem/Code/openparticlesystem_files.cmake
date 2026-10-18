@@ -26,6 +26,8 @@ set(FILES
         Source/Runtime/OpenParticleSystem/ParticleComponentController.cpp
         Source/Runtime/OpenParticleSystem/ParticleComponentConfig.h
         Source/Runtime/OpenParticleSystem/ParticleComponentConfig.cpp
+        Source/Runtime/OpenParticleSystem/ParticleMotionEventsComponent.h
+        Source/Runtime/OpenParticleSystem/ParticleMotionEventsComponent.cpp
         Source/Runtime/OpenParticleSystem/SystemComponent.h
         Source/Runtime/OpenParticleSystem/SystemComponent.cpp
         Source/Runtime/OpenParticleSystem/ParticleConstant.h

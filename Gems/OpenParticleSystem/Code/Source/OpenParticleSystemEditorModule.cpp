@@ -10,6 +10,7 @@
 #include <OpenParticleSystemEditorSystemComponent.h>
 
 #include <OpenParticleSystem/ParticleComponent.h>
+#include <OpenParticleSystem/ParticleMotionEventsComponent.h>
 #include <OpenParticleSystem/SystemComponent.h>
 
 #ifdef PARTICLE_EDITOR
@@ -38,6 +39,7 @@ namespace OpenParticleSystem
             m_descriptors.insert(m_descriptors.end(), {
                 OpenParticle::SystemComponent::CreateDescriptor(),
                 OpenParticle::ParticleComponent::CreateDescriptor(),
+                OpenParticle::ParticleMotionEventsComponent::CreateDescriptor(),
 #ifdef PARTICLE_EDITOR
                 Thumbnails::ParticleMaterialThumbnailSystemComponent::CreateDescriptor(),
                 OpenParticleSystemEditor::OpenParticleViewportComponent::CreateDescriptor(),
