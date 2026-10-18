@@ -73,7 +73,7 @@ struct VertexInput
 {
     float4 position : POSITION;
     float4 color : COLOR;
-    float2 uv0 : UV0;
+    float4 uv0 : UV0;
 };
 
 struct VertexOutput
@@ -81,6 +81,7 @@ struct VertexOutput
     float4 position : SV_Position;
     float4 color : COLOR;
     float2 uv : UV0;
+    float lengthFraction : UV1;
 };
 
 VertexOutput MainVS(in VertexInput input)
@@ -91,7 +92,8 @@ VertexOutput MainVS(in VertexInput input)
     float4 worldPosition = float4(input.position.xyz, 1.0);
     output.position = mul(ViewSrg::m_viewProjectionMatrix, worldPosition);
     output.color = input.color;
-    output.uv = input.uv0;
+    output.uv = input.uv0.xy;
+    output.lengthFraction = input.uv0.z;
     return output;
 }
 
@@ -100,7 +102,8 @@ struct PixelOutput
      float4 color : SV_Target0;
 };
 
-// The ribbon's uv: u runs across the width (0 to 1), v along the length.
+// The ribbon's uv: u runs across the width (0 to 1), v along the length (a texture repeat per Tiling Distance when that is set). lengthFraction is 0 to 1 along
+// the ribbon in any case, so the ramp and the end fades keep working with Tiling Distance.
 PixelOutput MainPS(in VertexOutput input)
 {
     PixelOutput output;
@@ -128,7 +131,7 @@ PixelOutput MainPS(in VertexOutput input)
     color.a *= lerp(1.0, mask, MaterialSrg::m_maskStrength);
 
     // Ramp along the length (0), across the width (1) or by the mask (2).
-    float rampCoord = uv.y;
+    float rampCoord = input.lengthFraction;
     if (MaterialSrg::m_rampSource == 1)
     {
         rampCoord = uv.x;
@@ -146,8 +149,9 @@ PixelOutput MainPS(in VertexOutput input)
     {
         color.a *= 1.0 - smoothstep(1.0 - MaterialSrg::m_edgeSoftness, 1.0, across);
     }
-    // Soft ends: v runs along the ribbon, 0 at its oldest particle and 1 at its newest in Ribbon mode (the other way round in Trail mode); only meaningful with Tiling Distance 0.
-    color.a *= smoothstep(0.0, max(MaterialSrg::m_startFade, 0.0001), uv.y) * smoothstep(0.0, max(MaterialSrg::m_endFade, 0.0001), 1.0 - uv.y);
+    // Soft ends: 0 at the oldest particle of the ribbon and 1 at the newest in Ribbon mode (the other way round in Trail mode).
+    color.a *= smoothstep(0.0, max(MaterialSrg::m_startFade, 0.0001), input.lengthFraction)
+        * smoothstep(0.0, max(MaterialSrg::m_endFade, 0.0001), 1.0 - input.lengthFraction);
     const float core = pow(saturate(1.0 - across), max(MaterialSrg::m_corePower, 0.01));
     color.rgb += MaterialSrg::m_coreColor * (core * MaterialSrg::m_coreIntensity);
 

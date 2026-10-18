@@ -51,6 +51,7 @@ namespace SimuCore::ParticleCore {
             float& texV;
             AZStd::vector<ParticleRibbonVertex>& vb;
             AZStd::vector<AZ::u32>& ib;
+            float lengthFraction = 0.f;
         };
 
         void SortParticles(const ParticlePool& pool, AZStd::vector<AZ::Vector3>& positionBuffer, const BaseInfo& emitterInfo, const RibbonConfig& config);

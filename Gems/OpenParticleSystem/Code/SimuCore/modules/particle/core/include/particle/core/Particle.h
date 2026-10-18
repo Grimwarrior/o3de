@@ -77,7 +77,8 @@ namespace SimuCore::ParticleCore {
     struct ParticleRibbonVertex {
         AZ::Vector4 position{ 0.f, 0.f, 0.f, 0.f};
         AZ::Color color{ 1.f, 1.f, 1.f, 1.f };
-        AZ::Vector2 uv{ 0.5f, 0.5f };
+        // u across the ribbon, v along it (by Tiling Distance when set), z the fraction of the ribbon length from 0 to 1 regardless of tiling
+        AZ::Vector4 uv{ 0.5f, 0.5f, 0.f, 0.f };
     };
 
     enum class RenderType : AZ::u8 {
