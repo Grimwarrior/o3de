@@ -232,6 +232,7 @@ void ViewportInteraction::ClearInteraction(bool clearSpaceBarIsActive)
     m_startAnchors = UiTransform2dInterface::Anchors();
     m_grabbedAnchors = ViewportHelpers::SelectedAnchors();
     m_grabbedGizmoParts = ViewportHelpers::GizmoParts();
+    m_scaleStartStates.clear();
     m_selectedElementsAtSelectionStart.clear();
     m_isAreaSelectionActive = false;
     m_reversibleActionStarted = false;
@@ -354,6 +355,12 @@ void ViewportInteraction::Draw(Draw2dHelper& draw2d,
                 {
                     DrawAxisGizmo(draw2d, element, CoordinateSystem::LOCAL, m_lineSquareX.get(), m_lineSquareY.get());
                 }
+            }
+            break;
+        case InteractionMode::SCALE:
+            if (AZ::Entity* element = GetScaleGizmoElement(selectedItems))
+            {
+                DrawAxisGizmo(draw2d, element, CoordinateSystem::LOCAL, m_lineSquareX.get(), m_lineSquareY.get());
             }
             break;
         }
@@ -822,6 +829,7 @@ void ViewportInteraction::SetMode(InteractionMode m)
     m_editorWindow->GetModeToolbar()->SetCheckedItem(static_cast<int>(m_interactionMode));
     m_editorWindow->GetModeToolbar()->GetAlignToolbarSection()->SetIsVisible(
         m_interactionMode == InteractionMode::MOVE || m_interactionMode == InteractionMode::ANCHOR);
+    m_editorWindow->GetModeToolbar()->SetScalePivotIsVisible(m_interactionMode == InteractionMode::SCALE);
     UpdateCoordinateSystemToolbarSection();
     m_editorWindow->GetViewport()->Refresh();
 }
@@ -849,10 +857,23 @@ ViewportInteraction::CoordinateSystem ViewportInteraction::GetCoordinateSystem()
     return m_coordinateSystem;
 }
 
+void ViewportInteraction::SetScalePivotMode(ScalePivotMode mode)
+{
+    m_scalePivotMode = mode;
+    m_editorWindow->GetModeToolbar()->SetScalePivotIndex(static_cast<int>(mode));
+}
+
+ViewportInteraction::ScalePivotMode ViewportInteraction::GetScalePivotMode() const
+{
+    return m_scalePivotMode;
+}
+
 void ViewportInteraction::InitializeToolbars()
 {
     m_editorWindow->GetModeToolbar()->SetCheckedItem(static_cast<int>(m_interactionMode));
     m_editorWindow->GetModeToolbar()->GetAlignToolbarSection()->SetIsVisible(m_interactionMode == InteractionMode::MOVE || m_interactionMode == InteractionMode::ANCHOR);
+    m_editorWindow->GetModeToolbar()->SetScalePivotIsVisible(m_interactionMode == InteractionMode::SCALE);
+    m_editorWindow->GetModeToolbar()->SetScalePivotIndex(static_cast<int>(m_scalePivotMode));
 
     m_editorWindow->GetCoordinateSystemToolbarSection()->SetCurrentIndex(static_cast<int>(m_coordinateSystem));
 
@@ -1217,6 +1238,19 @@ void ViewportInteraction::UpdateInteractionType(const AZ::Vector2& mousePosition
         }
         break;
     }
+    case InteractionMode::SCALE:
+    {
+        AZ::Entity* element = GetScaleGizmoElement(selectedItems);
+        if (element &&
+            ViewportElement::PickAxisGizmo(element, CoordinateSystem::LOCAL, m_interactionMode, mousePosition, m_lineSquareX->GetTextureSize(), m_grabbedGizmoParts))
+        {
+            // Hovering over scale gizmo
+            m_interactionType = InteractionType::TRANSFORM_GIZMO;
+            m_activeElementId = element->GetId();
+            return;
+        }
+        break;
+    }
     default:
     {
         // Do nothing
@@ -1433,6 +1467,9 @@ void ViewportInteraction::ProcessInteraction(const AZ::Vector2& mousePosition,
             }
         }
         break;
+        case InteractionMode::SCALE:
+            ScaleByGizmo(mousePosition, selectedItems);
+            break;
         case InteractionMode::RESIZE:
         {
             if (!ViewportHelpers::IsControlledByLayout(EntityHelpers::GetEntity(m_activeElementId)))
@@ -1496,6 +1533,7 @@ void ViewportInteraction::DrawAxisGizmo(Draw2dHelper& draw2d, const AZ::Entity* 
         AZ::Matrix4x4 transform;
 
         bool isMoveOrAnchorMode = m_interactionMode == InteractionMode::MOVE || m_interactionMode == InteractionMode::ANCHOR;
+        bool showAllAxes = isMoveOrAnchorMode || m_interactionMode == InteractionMode::SCALE;
 
         if (coordinateSystem == CoordinateSystem::LOCAL)
         {
@@ -1513,26 +1551,79 @@ void ViewportInteraction::DrawAxisGizmo(Draw2dHelper& draw2d, const AZ::Entity* 
         }
 
         // Draw up axis
-        if (isMoveOrAnchorMode || !ViewportHelpers::IsVerticallyFit(element))
+        if (showAllAxes || !ViewportHelpers::IsVerticallyFit(element))
         {
             AZ::Color color = ((m_activeElementId == element->GetId()) && m_grabbedGizmoParts.m_top) ? ViewportHelpers::highlightColor : ViewportHelpers::yColor;
             lineTextureY->Draw(draw2d, pivotPosition, transform, 0.0f, color);
         }
 
         // Draw right axis
-        if (isMoveOrAnchorMode || !ViewportHelpers::IsHorizontallyFit(element))
+        if (showAllAxes || !ViewportHelpers::IsHorizontallyFit(element))
         {
             AZ::Color color = ((m_activeElementId == element->GetId()) && m_grabbedGizmoParts.m_right) ? ViewportHelpers::highlightColor : ViewportHelpers::xColor;
             lineTextureX->Draw(draw2d, pivotPosition, transform, 0.0f, color);
         }
 
         // Draw center square
-        if (isMoveOrAnchorMode || !ViewportHelpers::IsHorizontallyFit(element) && !ViewportHelpers::IsVerticallyFit(element))
+        if (showAllAxes || (!ViewportHelpers::IsHorizontallyFit(element) && !ViewportHelpers::IsVerticallyFit(element)))
         {
             AZ::Color color = ((m_activeElementId == element->GetId()) && m_grabbedGizmoParts.Both()) ? ViewportHelpers::highlightColor : ViewportHelpers::zColor;
             m_centerSquare->Draw(draw2d, pivotPosition, transform, 0.0f, color);
         }
     }
+}
+
+AZ::Entity* ViewportInteraction::GetScaleGizmoElement(const QTreeWidgetItemRawPtrQList& selectedItems) const
+{
+    LyShine::EntityArray topLevelSelectedElements = SelectionHelpers::GetTopLevelSelectedElements(m_editorWindow->GetHierarchy(), selectedItems);
+    return topLevelSelectedElements.empty() ? nullptr : topLevelSelectedElements.front();
+}
+
+void ViewportInteraction::ScaleByGizmo(const AZ::Vector2& mousePosition, const QTreeWidgetItemRawPtrQList& selectedItems)
+{
+    if (m_scaleStartStates.empty())
+    {
+        UiTransformInterface::RectPoints rect;
+        UiTransformBus::Event(m_activeElementId, &UiTransformBus::Events::GetViewportSpacePoints, rect);
+        m_scaleGizmoAxisX = (rect.TopRight() - rect.TopLeft()).GetNormalizedSafe();
+        m_scaleGizmoAxisY = (rect.BottomLeft() - rect.TopLeft()).GetNormalizedSafe();
+        UiTransformBus::EventResult(m_scaleGizmoPivot, m_activeElementId, &UiTransformBus::Events::GetViewportSpacePivot);
+
+        m_scaleStartStates = ViewportElement::BeginScale(
+            SelectionHelpers::GetSelectedElements(m_editorWindow->GetHierarchy(), selectedItems),
+            SelectionHelpers::GetTopLevelSelectedElements(m_editorWindow->GetHierarchy(), selectedItems),
+            m_scalePivotMode);
+    }
+
+    // The ratio of how far the mouse is from the pivot along an axis now compared to when the drag started
+    auto axisRatio = [this, &mousePosition](const AZ::Vector2& axis)
+    {
+        const float start = (m_startMouseDragPos - m_scaleGizmoPivot).Dot(axis);
+        const float current = (mousePosition - m_scaleGizmoPivot).Dot(axis);
+        return (fabsf(start) > 1.0f) ? AZ::GetMax(current / start, 0.01f) : 1.0f;
+    };
+
+    AZ::Vector2 factor = AZ::Vector2::CreateOne();
+    if (m_grabbedGizmoParts.Both())
+    {
+        // The center square sits too close to the pivot for a ratio, so every 200 pixels right or up adds one to the scale
+        const AZ::Vector2 drag = mousePosition - m_startMouseDragPos;
+        const float uniform = AZ::GetMax(1.0f + (drag.GetX() - drag.GetY()) / 200.0f, 0.01f);
+        factor.Set(uniform, uniform);
+    }
+    else
+    {
+        if (m_grabbedGizmoParts.m_right)
+        {
+            factor.SetX(axisRatio(m_scaleGizmoAxisX));
+        }
+        if (m_grabbedGizmoParts.m_top)
+        {
+            factor.SetY(axisRatio(m_scaleGizmoAxisY));
+        }
+    }
+
+    ViewportElement::Scale(m_scaleStartStates, factor);
 }
 
 void ViewportInteraction::DrawCircleGizmo(Draw2dHelper& draw2d, const AZ::Entity* element)

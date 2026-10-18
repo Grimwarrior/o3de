@@ -72,4 +72,14 @@ public:
         const AZ::Vector2& mousePosition,
         bool adjustOffsets);
     static void MovePivot(const AZ::Vector2& lastMouseDragPos, AZ::Entity* element, const AZ::Vector2& mousePosition);
+
+    //! Capture the elements a Scale gizmo drag will change, and the point each one scales around.
+    //! The Selection pivot mode only scales the top level elements since their children follow them.
+    static AZStd::vector<ViewportElementScaleStart> BeginScale(
+        const LyShine::EntityArray& selectedElements,
+        const LyShine::EntityArray& topLevelSelectedElements,
+        ViewportInteraction::ScalePivotMode pivotMode);
+
+    //! Scale the captured elements by the factor, measured from the values they had when the drag started
+    static void Scale(const AZStd::vector<ViewportElementScaleStart>& startStates, const AZ::Vector2& factor);
 };

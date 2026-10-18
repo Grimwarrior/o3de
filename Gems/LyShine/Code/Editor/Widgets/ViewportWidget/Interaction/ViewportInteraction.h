@@ -17,6 +17,7 @@
 #include <AzCore/Math/Uuid.h>
 #include <AzCore/Math/Vector2.h>
 #include <AzCore/Math/Vector3.h>
+#include <AzCore/std/containers/vector.h>
 #include <AzCore/std/optional.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/string/string.h>
@@ -32,6 +33,17 @@ class QMouseEvent;
 class QWheelEvent;
 class ViewportDragInteraction;
 class ViewportInteractionExpanderWatcher;
+
+//! What a Scale gizmo drag remembers about one element when it starts
+struct ViewportElementScaleStart
+{
+    AZ::EntityId m_elementId;
+    AZ::Vector2 m_startScale = AZ::Vector2::CreateOne();
+    UiTransform2dInterface::Offsets m_startOffsets;
+    AZ::Vector2 m_startPivotPos = AZ::Vector2::CreateZero(); //!< The element's pivot in its parent's layout space
+    AZ::Vector2 m_scaleOrigin = AZ::Vector2::CreateZero(); //!< The point to scale around in its parent's layout space
+    bool m_canMove = true; //!< False when a layout controls the element's position
+};
 
 namespace AZ
 {
@@ -100,7 +112,16 @@ public: // member functions
         MOVE,
         ROTATE,
         RESIZE,
-        ANCHOR
+        ANCHOR,
+        SCALE
+    };
+
+    //! The point the Scale mode scales around
+    enum class ScalePivotMode
+    {
+        OWN, //!< Every selected element scales around its own pivot
+        SELECTION, //!< The top level selected elements scale around the pivot of the first one
+        PARENT //!< Every selected element scales around the pivot of its parent
     };
 
     //! Type of coordinate system in the viewport
@@ -134,6 +155,9 @@ public: // member functions
 
     void SetCoordinateSystem(CoordinateSystem s);
     CoordinateSystem GetCoordinateSystem() const;
+
+    void SetScalePivotMode(ScalePivotMode mode);
+    ScalePivotMode GetScalePivotMode() const;
 
     void InitializeToolbars();
 
@@ -239,6 +263,12 @@ private: // member functions
         const ViewportIcon* lineTextureY);
     void DrawCircleGizmo(Draw2dHelper& draw2d, const AZ::Entity* element);
 
+    //! The element the Scale mode gizmo is drawn on and picked from
+    AZ::Entity* GetScaleGizmoElement(const QTreeWidgetItemRawPtrQList& selectedItems) const;
+
+    //! Scale the selected elements by dragging the Scale gizmo
+    void ScaleByGizmo(const AZ::Vector2& mousePosition, const QTreeWidgetItemRawPtrQList& selectedItems);
+
     // The coordinate system toolbar updates based on the interaction mode and coordinate system setting
     void UpdateCoordinateSystemToolbarSection();
 
@@ -267,6 +297,7 @@ private: // data
     InteractionMode m_interactionMode;
     InteractionType m_interactionType;
     CoordinateSystem m_coordinateSystem;
+    ScalePivotMode m_scalePivotMode = ScalePivotMode::OWN;
     bool m_spaceBarIsActive; //!< True when the spacebar is held down, false otherwise.
     bool m_leftButtonIsActive; //!< True when the left mouse button is down, false otherwise.
     bool m_middleButtonIsActive; //!< True when the middle mouse button is down, false otherwise.
@@ -294,6 +325,12 @@ private: // data
     ViewportHelpers::SelectedAnchors m_grabbedAnchors;
     ViewportHelpers::GizmoParts m_grabbedGizmoParts;
 
+    // Captured when a Scale gizmo drag starts so every mouse move scales from the original values
+    AZStd::vector<ViewportElementScaleStart> m_scaleStartStates;
+    AZ::Vector2 m_scaleGizmoPivot = AZ::Vector2::CreateZero(); //!< The active element's pivot in viewport space
+    AZ::Vector2 m_scaleGizmoAxisX = AZ::Vector2(1.0f, 0.0f); //!< The active element's X axis in viewport space
+    AZ::Vector2 m_scaleGizmoAxisY = AZ::Vector2(0.0f, 1.0f); //!< The active element's Y axis in viewport space
+
     // Used for drawing the transform gizmo
     std::unique_ptr<ViewportIcon> m_lineTriangleX;
     std::unique_ptr<ViewportIcon> m_lineTriangleY;
@@ -318,7 +355,7 @@ private: // data
 };
 
 ADD_ENUM_CLASS_ITERATION_OPERATORS(
-    ViewportInteraction::InteractionMode, ViewportInteraction::InteractionMode::SELECTION, ViewportInteraction::InteractionMode::ANCHOR);
+    ViewportInteraction::InteractionMode, ViewportInteraction::InteractionMode::SELECTION, ViewportInteraction::InteractionMode::SCALE);
 
 ADD_ENUM_CLASS_ITERATION_OPERATORS(
     ViewportInteraction::CoordinateSystem, ViewportInteraction::CoordinateSystem::LOCAL, ViewportInteraction::CoordinateSystem::VIEW);

@@ -16,6 +16,7 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QComboBox>
 #include <QIcon>
 #include <QString>
 #include <QToolBar>
@@ -24,6 +25,8 @@ ModeToolbar::ModeToolbar(EditorWindow* parent)
     : QToolBar(tr("Mode Toolbar"), parent)
     , m_group(nullptr)
     , m_previousAction(nullptr)
+    , m_scalePivotCombobox(new QComboBox(this))
+    , m_scalePivotAction(nullptr)
     , m_alignToolbarSection(new AlignToolbarSection)
 {
     setObjectName("ModeToolbar"); // needed to save state
@@ -33,7 +36,42 @@ ModeToolbar::ModeToolbar(EditorWindow* parent)
 
     m_alignToolbarSection->AddButtons(this);
 
+    // Scale mode: what the selected elements scale around
+    {
+        m_scalePivotCombobox->setToolTip(tr("What the selected elements scale around"));
+        m_scalePivotCombobox->setMinimumContentsLength(14);
+        m_scalePivotCombobox->addItem(tr("Own Pivot"), static_cast<int>(ViewportInteraction::ScalePivotMode::OWN));
+        m_scalePivotCombobox->setItemData(0, tr("Every selected element scales around its own pivot"), Qt::ToolTipRole);
+        m_scalePivotCombobox->addItem(tr("Selection Pivot"), static_cast<int>(ViewportInteraction::ScalePivotMode::SELECTION));
+        m_scalePivotCombobox->setItemData(
+            1, tr("The selected elements scale together around the pivot of the first one, their children follow"), Qt::ToolTipRole);
+        m_scalePivotCombobox->addItem(tr("Parent Pivot"), static_cast<int>(ViewportInteraction::ScalePivotMode::PARENT));
+        m_scalePivotCombobox->setItemData(2, tr("Every selected element scales around the pivot of its parent"), Qt::ToolTipRole);
+
+        QObject::connect(
+            m_scalePivotCombobox,
+            static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this,
+            [parent](int index)
+            {
+                parent->GetViewport()->GetViewportInteraction()->SetScalePivotMode(static_cast<ViewportInteraction::ScalePivotMode>(index));
+            });
+
+        m_scalePivotAction = addWidget(m_scalePivotCombobox);
+        m_scalePivotAction->setVisible(false);
+    }
+
     parent->addToolBar(this);
+}
+
+void ModeToolbar::SetScalePivotIsVisible(bool visible)
+{
+    m_scalePivotAction->setVisible(visible);
+}
+
+void ModeToolbar::SetScalePivotIndex(int index)
+{
+    m_scalePivotCombobox->setCurrentIndex(index);
 }
 
 void ModeToolbar::SetCheckedItem(int index)

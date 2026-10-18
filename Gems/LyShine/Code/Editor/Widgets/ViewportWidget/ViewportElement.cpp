@@ -590,6 +590,91 @@ void ViewportElement::Rotate(HierarchyWidget* hierarchy,
     ViewportSnap::Rotate(hierarchy, canvasId, element, signedAngle);
 }
 
+AZStd::vector<ViewportElementScaleStart> ViewportElement::BeginScale(
+    const LyShine::EntityArray& selectedElements,
+    const LyShine::EntityArray& topLevelSelectedElements,
+    ViewportInteraction::ScalePivotMode pivotMode)
+{
+    const bool selectionPivot = (pivotMode == ViewportInteraction::ScalePivotMode::SELECTION);
+    const LyShine::EntityArray& elements = selectionPivot ? topLevelSelectedElements : selectedElements;
+
+    AZ::Vector2 selectionPivotInViewport = AZ::Vector2::CreateZero();
+    if (selectionPivot && !elements.empty())
+    {
+        UiTransformBus::EventResult(selectionPivotInViewport, elements.front()->GetId(), &UiTransformBus::Events::GetViewportSpacePivot);
+    }
+
+    AZStd::vector<ViewportElementScaleStart> startStates;
+    for (AZ::Entity* element : elements)
+    {
+        if (!UiTransformBus::FindFirstHandler(element->GetId()) || !UiTransform2dBus::FindFirstHandler(element->GetId()))
+        {
+            continue;
+        }
+
+        ViewportElementScaleStart state;
+        state.m_elementId = element->GetId();
+        UiTransformBus::EventResult(state.m_startScale, state.m_elementId, &UiTransformBus::Events::GetScale);
+        UiTransform2dBus::EventResult(state.m_startOffsets, state.m_elementId, &UiTransform2dBus::Events::GetOffsets);
+        UiTransformBus::EventResult(state.m_startPivotPos, state.m_elementId, &UiTransformBus::Events::GetCanvasSpacePivotNoScaleRotate);
+        state.m_canMove = !ViewportHelpers::IsControlledByLayout(element);
+        state.m_scaleOrigin = state.m_startPivotPos;
+
+        // Find the point to scale around, in viewport space
+        AZ::Entity* parentElement = EntityHelpers::GetParentElement(element);
+        bool hasOtherOrigin = false;
+        AZ::Vector2 originInViewport = AZ::Vector2::CreateZero();
+        if (selectionPivot)
+        {
+            originInViewport = selectionPivotInViewport;
+            hasOtherOrigin = true;
+        }
+        else if (pivotMode == ViewportInteraction::ScalePivotMode::PARENT && parentElement && UiTransformBus::FindFirstHandler(parentElement->GetId()))
+        {
+            UiTransformBus::EventResult(originInViewport, parentElement->GetId(), &UiTransformBus::Events::GetViewportSpacePivot);
+            hasOtherOrigin = true;
+        }
+
+        // The element's offsets live in its parent's layout space so the origin has to be brought into that space
+        if (hasOtherOrigin && parentElement && UiTransformBus::FindFirstHandler(parentElement->GetId()))
+        {
+            AZ::Matrix4x4 parentTransformFromViewport;
+            UiTransformBus::Event(parentElement->GetId(), &UiTransformBus::Events::GetTransformFromViewport, parentTransformFromViewport);
+            AZ::Vector3 origin = parentTransformFromViewport * AZ::Vector3(originInViewport.GetX(), originInViewport.GetY(), 0.0f);
+            state.m_scaleOrigin = AZ::Vector2(origin.GetX(), origin.GetY());
+        }
+
+        startStates.push_back(state);
+    }
+
+    return startStates;
+}
+
+void ViewportElement::Scale(const AZStd::vector<ViewportElementScaleStart>& startStates, const AZ::Vector2& factor)
+{
+    for (const ViewportElementScaleStart& state : startStates)
+    {
+        UiTransformBus::Event(
+            state.m_elementId,
+            &UiTransformBus::Events::SetScale,
+            AZ::Vector2(state.m_startScale.GetX() * factor.GetX(), state.m_startScale.GetY() * factor.GetY()));
+
+        // Keep the element on the same spot relative to the scale origin, as if the whole element had been scaled around it
+        AZ::Vector2 shift(
+            (state.m_startPivotPos.GetX() - state.m_scaleOrigin.GetX()) * (factor.GetX() - 1.0f),
+            (state.m_startPivotPos.GetY() - state.m_scaleOrigin.GetY()) * (factor.GetY() - 1.0f));
+        if (state.m_canMove && !shift.IsZero())
+        {
+            UiTransform2dInterface::Offsets offsets = state.m_startOffsets;
+            offsets.m_left += shift.GetX();
+            offsets.m_right += shift.GetX();
+            offsets.m_top += shift.GetY();
+            offsets.m_bottom += shift.GetY();
+            UiTransform2dBus::Event(state.m_elementId, &UiTransform2dBus::Events::SetOffsets, offsets);
+        }
+    }
+}
+
 void ViewportElement::MoveAnchors(const ViewportHelpers::SelectedAnchors& grabbedAnchors,
     const UiTransform2dInterface::Anchors& startAnchors,
     const AZ::Vector2& startMouseDragPos,

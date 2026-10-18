@@ -278,6 +278,9 @@ namespace ViewportHelpers
         case ViewportInteraction::InteractionMode::RESIZE:
             return "Resize";
             break;
+        case ViewportInteraction::InteractionMode::SCALE:
+            return "Scale";
+            break;
         default:
             AZ_Assert(false, "Invalid mode");
             return "UNKNOWN";

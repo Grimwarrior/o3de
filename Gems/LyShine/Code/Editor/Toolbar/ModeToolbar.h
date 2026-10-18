@@ -16,6 +16,7 @@
 class EditorWindow;
 class QActionGroup;
 class QAction;
+class QComboBox;
 
 class ModeToolbar : public QToolBar
 {
@@ -25,6 +26,10 @@ public:
     explicit ModeToolbar(EditorWindow* parent);
 
     void SetCheckedItem(int index);
+
+    //! The combobox that picks what the Scale mode scales around
+    void SetScalePivotIsVisible(bool visible);
+    void SetScalePivotIndex(int index);
 
     AlignToolbarSection* GetAlignToolbarSection() const
     {
@@ -36,6 +41,8 @@ private:
 
     QActionGroup* m_group;
     QAction* m_previousAction;
+    QComboBox* m_scalePivotCombobox;
+    QAction* m_scalePivotAction;
 
     std::unique_ptr<AlignToolbarSection> m_alignToolbarSection;
 };
