@@ -9,4 +9,5 @@
 set(FILES
     Include/OpenParticleSystem/ParticleRequestBus.h
     Include/OpenParticleSystem/ParticleDistortionBus.h
+    Include/OpenParticleSystem/ParticleTargetBus.h
 )

@@ -39,7 +39,9 @@ namespace OpenParticle
         AZStd::string m_eventName;
         // Only events with this parameter react; empty = any.
         AZStd::string m_parameter;
-        // The entity with the Particle component; empty = this entity.
+        // The entity with the Particle component, by name: found among the character's equipment (Particle Target bus), then among this entity's descendants.
+        AZStd::string m_particleEntityName;
+        // The entity with the Particle component when no name is given; empty = this entity.
         AZ::EntityId m_particleEntity;
         // For a ranged event: its start. A one-shot event only has a start.
         MotionEventParticleAction m_onStart = MotionEventParticleAction::Restart;
@@ -67,6 +69,7 @@ namespace OpenParticle
         void OnMotionEvent(EMotionFX::Integration::MotionEvent motionEvent) override;
 
         void Apply(const ParticleMotionEventEntry& entry, MotionEventParticleAction action) const;
+        AZ::EntityId ResolveTarget(const ParticleMotionEventEntry& entry) const;
 
         AZStd::vector<ParticleMotionEventEntry> m_entries;
         // Events from clips that are fading out (weight below this) are ignored, so a blend does not fire twice.

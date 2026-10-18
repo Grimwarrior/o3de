@@ -8,9 +8,12 @@
 
 #include "ParticleMotionEventsComponent.h"
 
+#include <AzCore/Component/ComponentApplicationBus.h>
+#include <AzCore/Component/TransformBus.h>
 #include <AzCore/Serialization/EditContext.h>
 #include <AzCore/Serialization/SerializeContext.h>
 #include <OpenParticleSystem/ParticleRequestBus.h>
+#include <OpenParticleSystem/ParticleTargetBus.h>
 
 namespace OpenParticle
 {
@@ -29,6 +32,7 @@ namespace OpenParticle
                 ->Version(0)
                 ->Field("EventName", &ParticleMotionEventEntry::m_eventName)
                 ->Field("Parameter", &ParticleMotionEventEntry::m_parameter)
+                ->Field("ParticleEntityName", &ParticleMotionEventEntry::m_particleEntityName)
                 ->Field("ParticleEntity", &ParticleMotionEventEntry::m_particleEntity)
                 ->Field("OnStart", &ParticleMotionEventEntry::m_onStart)
                 ->Field("OnEnd", &ParticleMotionEventEntry::m_onEnd);
@@ -49,8 +53,10 @@ namespace OpenParticle
                         "The subject of the motion event, as named in the Motion Events editor.")
                     ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleMotionEventEntry::m_parameter, "Parameter",
                         "Only events with this parameter react; empty reacts to any.")
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleMotionEventEntry::m_particleEntityName, "Particle Entity Name",
+                        "Name of the entity with the Particle component, looked up when the event fires: first in the character's equipment (the held weapon's Trail), then among this entity's children. Empty uses Particle Entity.")
                     ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleMotionEventEntry::m_particleEntity, "Particle Entity",
-                        "The entity with the Particle component; empty uses this entity.")
+                        "The entity with the Particle component when no name is given; empty uses this entity.")
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &ParticleMotionEventEntry::m_onStart, "On Start",
                         "What the event's start does (a one-shot event only has a start). Restart replays from the beginning.")
                         ->EnumAttribute(MotionEventParticleAction::None, "None")
@@ -136,9 +142,41 @@ namespace OpenParticle
         }
     }
 
+    AZ::EntityId ParticleMotionEventsComponent::ResolveTarget(const ParticleMotionEventEntry& entry) const
+    {
+        if (entry.m_particleEntityName.empty())
+        {
+            return entry.m_particleEntity.IsValid() ? entry.m_particleEntity : GetEntityId();
+        }
+
+        AZ::EntityId found;
+        ParticleTargetRequestBus::EventResult(found, GetEntityId(), &ParticleTargetRequestBus::Events::FindParticleEntity, entry.m_particleEntityName);
+        if (found.IsValid())
+        {
+            return found;
+        }
+
+        AZStd::vector<AZ::EntityId> descendants;
+        AZ::TransformBus::EventResult(descendants, GetEntityId(), &AZ::TransformBus::Events::GetAllDescendants);
+        for (const AZ::EntityId& descendant : descendants)
+        {
+            AZStd::string name;
+            AZ::ComponentApplicationBus::BroadcastResult(name, &AZ::ComponentApplicationRequests::GetEntityName, descendant);
+            if (name == entry.m_particleEntityName)
+            {
+                return descendant;
+            }
+        }
+        return AZ::EntityId();
+    }
+
     void ParticleMotionEventsComponent::Apply(const ParticleMotionEventEntry& entry, MotionEventParticleAction action) const
     {
-        const AZ::EntityId target = entry.m_particleEntity.IsValid() ? entry.m_particleEntity : GetEntityId();
+        const AZ::EntityId target = ResolveTarget(entry);
+        if (!target.IsValid())
+        {
+            return;
+        }
         switch (action)
         {
         case MotionEventParticleAction::Play:
