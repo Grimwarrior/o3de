@@ -105,7 +105,7 @@ namespace OpenParticle
                     ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleMotionEventsComponent::m_entries, "Events",
                         "The motion events to react to.")
                     ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleMotionEventsComponent::m_minWeight, "Min Weight",
-                        "Events from a clip playing with less weight than this are ignored, so a blend between clips does not fire twice.")
+                        "Events from a clip playing with less weight than this are ignored. 0 keeps every event; raise it to skip clips that are fading in or out, but an event at the very start of a clip then needs the clip to have blended in first.")
                         ->Attribute(AZ::Edit::Attributes::Min, 0.0f)
                         ->Attribute(AZ::Edit::Attributes::Max, 1.0f);
             }
@@ -130,7 +130,7 @@ namespace OpenParticle
 
     void ParticleMotionEventsComponent::OnMotionEvent(EMotionFX::Integration::MotionEvent motionEvent)
     {
-        if (!motionEvent.m_eventTypeName || motionEvent.m_globalWeight < m_minWeight)
+        if (!motionEvent.m_eventTypeName)
         {
             return;
         }
@@ -141,6 +141,12 @@ namespace OpenParticle
         {
             if (entry.m_eventName != subject || (!entry.m_parameter.empty() && entry.m_parameter != parameter))
             {
+                continue;
+            }
+            if (motionEvent.m_globalWeight < m_minWeight)
+            {
+                AZ_TracePrintf("Particle", "Particle Motion Events: '%s' ignored, clip weight %.2f is below Min Weight %.2f", entry.m_eventName.c_str(),
+                    motionEvent.m_globalWeight, m_minWeight);
                 continue;
             }
             Apply(entry, motionEvent.m_isEventStart ? entry.m_onStart : entry.m_onEnd);

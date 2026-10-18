@@ -76,8 +76,8 @@ namespace OpenParticle
         void ClearSpawnStop(AZ::EntityId target);
 
         AZStd::vector<ParticleMotionEventEntry> m_entries;
-        // Events from clips that are fading out (weight below this) are ignored, so a blend does not fire twice.
-        float m_minWeight = 0.5f;
+        // Events from clips playing with less weight than this are ignored; 0 keeps them all, including an event at the very start of a clip that is still blending in.
+        float m_minWeight = 0.0f;
         // Particle entities whose spawn rate this component zeroed; their overrides are cleared before they play again.
         AZStd::unordered_set<AZ::EntityId> m_spawnStopped;
     };
