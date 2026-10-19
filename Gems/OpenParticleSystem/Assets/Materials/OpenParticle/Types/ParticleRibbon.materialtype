@@ -435,6 +435,32 @@
                     }
                 },
                 {
+                    "name": "rimOpacity",
+                    "displayName": "Rim Opacity",
+                    "description": "Scales the rim on its own, on top of the fades it already follows. 0 hides it without touching the body.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rimOpacity"
+                    }
+                },
+                {
+                    "name": "rimDissolve",
+                    "displayName": "Rim Dissolve",
+                    "description": "How much the rim breaks up and disappears with the Dissolve setting, through the same mask as the body. 0 keeps the rim solid until its age fade ends.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_rimDissolve"
+                    }
+                },
+                {
                     "name": "glow",
                     "displayName": "Glow",
                     "description": "Multiplies the whole ribbon colour; above 1 it blooms.",

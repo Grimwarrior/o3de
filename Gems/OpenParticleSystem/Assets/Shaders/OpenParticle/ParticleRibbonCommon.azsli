@@ -54,6 +54,8 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     float       m_rimIntensity;
     float       m_rimWidth;
     uint        m_rimSide;
+    float       m_rimOpacity;
+    float       m_rimDissolve;
 
     // Distortion: warps the scene behind the ribbon (only read by the distortion shader).
     float       m_distortStrength;
@@ -140,7 +142,8 @@ float4 ShadeRibbon(in VertexOutput input)
     const float soft = max(MaterialSrg::m_dissolveSoftness, 0.001);
     const float threshold = lerp(-soft, (1.0 - input.color.a) * (1.0 + soft) - soft, MaterialSrg::m_dissolve);
     color.a = lerp(color.a, color.a / max(input.color.a, 0.0001), MaterialSrg::m_dissolve);
-    color.a *= smoothstep(threshold, threshold + soft, mask);
+    const float dissolveKeep = smoothstep(threshold, threshold + soft, mask);
+    color.a *= dissolveKeep;
 
     color.a *= lerp(1.0, mask, MaterialSrg::m_maskStrength);
 
@@ -170,7 +173,11 @@ float4 ShadeRibbon(in VertexOutput input)
     const float core = pow(saturate(1.0 - across), max(MaterialSrg::m_corePower, 0.01));
     color.rgb += MaterialSrg::m_coreColor * (core * MaterialSrg::m_coreIntensity);
 
-    // The rim is a solid band that stays when the rest has faded; it follows the ribbon age and ends but not the mask.
+    // The body takes the overall opacity here so the rim, which is added next, can follow it on its own terms.
+    color.a *= MaterialSrg::m_opacityFactor;
+
+    // The rim is a solid band along the side. It fades with the ribbon: the age fade, the soft ends, the overall opacity and the dissolve (Rim Dissolve breaks it
+    // up through the same mask as the body), and Rim Opacity scales it on top.
     if (MaterialSrg::m_rimIntensity > 0.0001)
     {
         float side = across;
@@ -182,13 +189,14 @@ float4 ShadeRibbon(in VertexOutput input)
         {
             side = 1.0 - uv.x;
         }
-        const float rim = smoothstep(1.0 - max(MaterialSrg::m_rimWidth, 0.001), 1.0, side) * ends * input.color.a;
+        const float rimFade = ends * input.color.a * lerp(1.0, dissolveKeep, MaterialSrg::m_rimDissolve)
+            * MaterialSrg::m_rimOpacity * MaterialSrg::m_opacityFactor;
+        const float rim = smoothstep(1.0 - max(MaterialSrg::m_rimWidth, 0.001), 1.0, side) * rimFade;
         color.rgb += MaterialSrg::m_rimColor * (rim * MaterialSrg::m_rimIntensity);
         color.a = saturate(color.a + rim * saturate(MaterialSrg::m_rimIntensity));
     }
 
     color.rgb *= MaterialSrg::m_glow;
-    color.a *= MaterialSrg::m_opacityFactor;
 
     const float2 emissiveUv = input.uv;
     const float3 emissiveValue = GetEmissiveInput(MaterialSrg::m_emissiveMap, MaterialSrg::m_sampler, emissiveUv,
