@@ -120,9 +120,6 @@
                 "visibleOnNode": false,
                 "editableOnNode": false,
                 "settings": {
-                    "materialPropertyConnectionType": [
-                        "ShaderInput"
-                    ],
                     "materialPropertySrgMember": [
                         "STANDARD_SRG_MEMBER"
                     ]
