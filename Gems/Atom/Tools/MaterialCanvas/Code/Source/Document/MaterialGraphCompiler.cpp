@@ -177,9 +177,10 @@ namespace MaterialCanvas
             // this, all variables would be included in the SRG and material type. The shader compiler would eliminate unused variables from
             // the compiled shader code. The material type would fail to build if it referenced any of the eliminated variables.
 
-            // Note: The MaterialSrg has been replaced with the MaterialParameters - struct, which is generated automatically from the
-            // MaterialProperties with a shaderInput connection.
-            // BuildMaterialSrgForCurrentNode();
+            // Note: The pipeline based output nodes (Standard PBR) read the MaterialParameters struct, which is generated automatically from
+            // the material properties with a shaderInput connection, and have no O3DE_GENERATED_MATERIAL_SRG block. Output nodes whose
+            // shaders declare their own MaterialSrg (the Particle Ribbon node) put that block in the SRG and get the members here.
+            BuildMaterialSrgForCurrentNode();
 
             // Write every output set this compile owes, reusing the already spliced template buffers.
             for (const OutputSet outputSet : GetOutputSetsForThisCompile())
