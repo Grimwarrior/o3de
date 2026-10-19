@@ -1,0 +1,71 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "DynamicNodeConfig",
+    "ClassData": {
+        "id": "{14CA5054-41FE-59E5-852D-9060A5A09014}",
+        "category": "Particle Ribbon",
+        "title": "Ribbon Bool Input",
+        "titlePaletteName": "MaterialInputNodeTitlePalette",
+        "description": "A shader variable of the ribbon material with the type and default value of this node, exposed as a material property.",
+        "slotDataTypeGroups": [
+            "inValue|outValue"
+        ],
+        "propertySlots": [
+            {
+                "name": "inGroup",
+                "displayName": "Group",
+                "description": "Material type group name that will contain the property corresponding to this input.",
+                "supportedDataTypeRegex": "string",
+                "defaultDataType": "string",
+                "visibleOnNode": false,
+                "editableOnNode": false
+            },
+            {
+                "name": "inName",
+                "displayName": "Name",
+                "description": "Property name that will be added to the material type for this input. The shader variable name and display name will be derived from this.",
+                "supportedDataTypeRegex": "string",
+                "defaultDataType": "string"
+            },
+            {
+                "name": "inDescription",
+                "displayName": "Description",
+                "description": "Description about what this material input does and how it should be used.",
+                "supportedDataTypeRegex": "string",
+                "defaultDataType": "string",
+                "visibleOnNode": false,
+                "editableOnNode": false
+            },
+            {
+                "name": "inValue",
+                "displayName": "Value",
+                "description": "Default value for the material property.",
+                "supportedDataTypeRegex": "bool",
+                "defaultDataType": "bool",
+                "settings": {
+                    "materialPropertyConnectionType": [
+                        "ShaderInput"
+                    ],
+                    "materialPropertySrgMember": [
+                        "STANDARD_SRG_MEMBER"
+                    ]
+                }
+            }
+        ],
+        "outputSlots": [
+            {
+                "name": "outValue",
+                "displayName": "Value",
+                "description": "Configured value of the material property.",
+                "supportedDataTypeRegex": "bool",
+                "defaultDataType": "bool",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = MaterialSrg::inValue;"
+                    ]
+                }
+            }
+        ]
+    }
+}

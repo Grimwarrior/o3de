@@ -1,0 +1,120 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "DynamicNodeConfig",
+    "ClassData": {
+        "id": "{9EBC2B02-FC45-52B5-9A3E-79D1AA0C9769}",
+        "category": "Material Outputs",
+        "title": "Particle Ribbon",
+        "titlePaletteName": "MaterialOutputNodeTitlePalette",
+        "description": "The surface of a particle ribbon (OpenParticleSystem). Its shader draws the ribbon with the ribbon renderer vertex data; use the Ribbon Vertex node for the ribbon uv, length and colour.",
+        "settings": {
+            "templatePaths": [
+                "@gemroot:OpenParticleSystem@/Assets/MaterialCanvas/ParticleRibbon/MaterialGraphName.material",
+                "@gemroot:OpenParticleSystem@/Assets/MaterialCanvas/ParticleRibbon/MaterialGraphName.materialtype",
+                "@gemroot:OpenParticleSystem@/Assets/MaterialCanvas/ParticleRibbon/MaterialGraphName.azsl",
+                "@gemroot:OpenParticleSystem@/Assets/MaterialCanvas/ParticleRibbon/MaterialGraphName.shader"
+            ]
+        },
+        "propertySlots": [
+            {
+                "name": "inDescription",
+                "displayName": "Description",
+                "description": "Provide a description or overview of what this material graph is doing",
+                "supportedDataTypeRegex": "string",
+                "defaultDataType": "string",
+                "visibleOnNode": false,
+                "editableOnNode": false
+            },
+            {
+                "name": "inBlendMode",
+                "displayName": "Mode",
+                "description": "How the ribbon is blended with the scene. Additive and Subtractive fade through the colour, Cutout clips at an alpha of 0.5.",
+                "supportedDataTypeRegex": "string",
+                "defaultDataType": "string",
+                "defaultValue": {
+                    "$type": "{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9} AZStd::string",
+                    "Value": "Blended"
+                },
+                "enumValues": [
+                    "Opaque",
+                    "Cutout",
+                    "Blended",
+                    "Additive",
+                    "Subtractive",
+                    "Modulate"
+                ],
+                "visibleOnNode": false,
+                "editableOnNode": false,
+                "allowNameSubstitution": false,
+                "settings": {
+                    "materialPropertyConnectionName": [
+                        "o_blendMode"
+                    ],
+                    "materialPropertyConnectionType": [
+                        "ShaderOption"
+                    ],
+                    "materialPropertyGroup": [
+                        "blend"
+                    ],
+                    "materialPropertyName": [
+                        "mode"
+                    ]
+                }
+            }
+        ],
+        "inputSlots": [
+            {
+                "name": "inBaseColor",
+                "displayName": "Base Color",
+                "description": "Colour of the ribbon, multiplied by the particle colour",
+                "supportedDataTypeRegex": "(color|bool|int|uint|float)([1-4])?",
+                "defaultDataType": "float3",
+                "defaultValue": {
+                    "$type": "Vector3",
+                    "Value": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ]
+                },
+                "allowNameSubstitution": false,
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = SLOTVALUE;"
+                    ]
+                }
+            },
+            {
+                "name": "inAlpha",
+                "displayName": "Alpha",
+                "description": "Opacity of the ribbon, multiplied by the particle colour alpha (its age fade)",
+                "supportedDataTypeRegex": "(color|bool|int|uint|float)([1-4])?",
+                "defaultDataType": "float",
+                "defaultValue": {
+                    "$type": "float",
+                    "Value": 1.0
+                },
+                "allowNameSubstitution": false,
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = SLOTVALUE;"
+                    ]
+                }
+            },
+            {
+                "name": "inEmissive",
+                "displayName": "Emissive",
+                "description": "Colour added on top, above 1 it blooms",
+                "supportedDataTypeRegex": "(color|bool|int|uint|float)([1-4])?",
+                "defaultDataType": "float3",
+                "allowNameSubstitution": false,
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = SLOTVALUE;"
+                    ]
+                }
+            }
+        ]
+    }
+}

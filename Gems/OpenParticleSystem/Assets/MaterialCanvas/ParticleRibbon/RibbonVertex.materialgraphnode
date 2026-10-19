@@ -1,0 +1,104 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "DynamicNodeConfig",
+    "ClassData": {
+        "id": "{7164504A-9CDE-5CF5-8E67-50C3E6260429}",
+        "category": "Particle Ribbon",
+        "title": "Ribbon Vertex",
+        "titlePaletteName": "VertexNodeTitlePalette",
+        "description": "The ribbon at this pixel: u across its width, v along it (a texture repeat per Tile Distance when set), the 0 to 1 fraction of its length, and its colour (alpha is its age fade).",
+        "slotDataTypeGroups": [
+            "outUV",
+            "outU|outV|outLength|outAge",
+            "outColor",
+            "outColorRGB"
+        ],
+        "outputSlots": [
+            {
+                "name": "outUV",
+                "displayName": "UV",
+                "description": "u across the ribbon, v along it",
+                "supportedDataTypeRegex": "float2",
+                "defaultDataType": "float2",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_UV;"
+                    ]
+                }
+            },
+            {
+                "name": "outU",
+                "displayName": "U",
+                "description": "Across the ribbon, 0 to 1",
+                "supportedDataTypeRegex": "float",
+                "defaultDataType": "float",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_UV.x;"
+                    ]
+                }
+            },
+            {
+                "name": "outV",
+                "displayName": "V",
+                "description": "Along the ribbon",
+                "supportedDataTypeRegex": "float",
+                "defaultDataType": "float",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_UV.y;"
+                    ]
+                }
+            },
+            {
+                "name": "outLength",
+                "displayName": "Length",
+                "description": "Fraction of the ribbon length, 0 to 1, whatever the tiling",
+                "supportedDataTypeRegex": "float",
+                "defaultDataType": "float",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_LENGTH;"
+                    ]
+                }
+            },
+            {
+                "name": "outAge",
+                "displayName": "Age Fade",
+                "description": "The alpha the particle colour curves give the ribbon over its life",
+                "supportedDataTypeRegex": "float",
+                "defaultDataType": "float",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_COLOR.a;"
+                    ]
+                }
+            },
+            {
+                "name": "outColor",
+                "displayName": "Color",
+                "description": "The particle colour at this point of the ribbon",
+                "supportedDataTypeRegex": "float4",
+                "defaultDataType": "float4",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_COLOR;"
+                    ]
+                }
+            },
+            {
+                "name": "outColorRGB",
+                "displayName": "Color RGB",
+                "description": "The rgb of the particle colour",
+                "supportedDataTypeRegex": "float3",
+                "defaultDataType": "float3",
+                "settings": {
+                    "instructions": [
+                        "SLOTTYPE SLOTNAME = O3DE_RIBBON_COLOR.rgb;"
+                    ]
+                }
+            }
+        ]
+    }
+}
