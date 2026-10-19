@@ -567,6 +567,19 @@ namespace MaterialCanvas
             m_templateFileDataVecForCurrentNode.end(),
             [&](auto& templateFileData)
             {
+                const auto& lines = templateFileData.GetLines();
+                const bool declaresMaterialSrg = AZStd::any_of(
+                    lines.begin(),
+                    lines.end(),
+                    [](const AZStd::string& line)
+                    {
+                        return AZ::StringFunc::Contains(line, "O3DE_GENERATED_MATERIAL_SRG_BEGIN");
+                    });
+                if (!declaresMaterialSrg)
+                {
+                    return;
+                }
+
                 templateFileData.ReplaceLinesInBlock(
                     "O3DE_GENERATED_MATERIAL_SRG_BEGIN",
                     "O3DE_GENERATED_MATERIAL_SRG_END",
@@ -574,6 +587,12 @@ namespace MaterialCanvas
                     {
                         return GetMaterialPropertySrgMemberFromNodes(m_instructionNodesForCurrentNode);
                     });
+
+                // The standard input and texture nodes read the material through the pipeline's params struct and its bindless texture and sampler
+                // lookups. Where the shader declares the members in its own SRG, params.member and the lookups of it are the SRG member itself.
+                templateFileData.ReplaceSymbol("GetMaterialTexture\\(params\\.(\\w+)\\)", "MaterialSrg::$1");
+                templateFileData.ReplaceSymbol("GetMaterialTextureSampler\\(params\\.(\\w+)\\)", "MaterialSrg::$1");
+                templateFileData.ReplaceSymbol("params\\.(\\w+)", "MaterialSrg::$1");
             });
     }
 
