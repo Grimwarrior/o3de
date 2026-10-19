@@ -1467,7 +1467,7 @@ namespace OpenParticle
                         ->Attribute(AZ::Edit::Attributes::Max, SimuCore::ALMOST_ONE)
                     ->DataElement(AZ::Edit::UIHandlers::Default, &OpenParticle::RibbonConfig::tilingDistance,
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Tile Distance"),
-                        QT_TRANSLATE_NOOP("OpenParticleSystem", "The tile distance of the ribbon."))
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Metres of ribbon one repeat of the texture covers; the texture stays fixed to the swing as old particles die. 0 stretches the texture over the whole ribbon."))
                         ->Attribute(AZ::Edit::Attributes::Min, 0.f)
                     ->DataElement(AZ::Edit::UIHandlers::Default, &OpenParticle::RibbonConfig::facing,
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Render Alignment"),

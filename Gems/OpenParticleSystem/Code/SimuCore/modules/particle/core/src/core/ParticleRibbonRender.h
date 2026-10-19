@@ -63,6 +63,10 @@ namespace SimuCore::ParticleCore {
 
         void Reset();
 
+        // Gives every live particle the distance along its ribbon it had when it was first drawn, so the texture stays put on the swing instead of sliding as old
+        // particles die. Only used with Tile Distance above 0.
+        void AnchorDistances(AZ::u32 aliveCount);
+
         void FillVertexAndIndexBuffer(const WorldInfo& world, const RibbonConfig& config,
             AZStd::vector<ParticleRibbonVertex>& vb, AZStd::vector<AZ::u32>& ib);
 
@@ -92,6 +96,9 @@ namespace SimuCore::ParticleCore {
         std::map<AZ::u64, AZStd::vector<std::pair<AZ::u32, float>>> sortedParticleIndices;
         AZStd::unordered_map<AZ::u64, AZStd::vector<RibbonSegment>> ribbonSegments;
         AZStd::unordered_map<AZ::u64, float> ribbonDistances;
+        // By particle id, kept between frames; and by particle index for the frame being drawn.
+        AZStd::unordered_map<AZ::u64, float> anchoredDistances;
+        AZStd::vector<float> anchoredOfIndex;
 
         AZStd::unordered_map<AZ::u64, AZStd::vector<ParticleRibbonVertex>> vbs;
         AZStd::unordered_map<AZ::u64, BufferView> vertexBufferViews;

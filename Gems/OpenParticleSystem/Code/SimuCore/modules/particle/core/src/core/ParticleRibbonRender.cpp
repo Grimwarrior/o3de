@@ -37,6 +37,11 @@ namespace SimuCore::ParticleCore {
 
         SortParticles(pool, item.positionBuffer, emitterInfo, config);
         CalculateParticlesInRibbons(config);
+        if (config.tilingDistance > 0.f) {
+            AnchorDistances(pool.Alive());
+        } else {
+            anchoredDistances.clear();
+        }
         if (segmentCount == 0 || ribbonCount == 0) {
             return;
         }
@@ -190,6 +195,43 @@ namespace SimuCore::ParticleCore {
         }
     }
 
+    void ParticleRibbonRender::AnchorDistances(AZ::u32 aliveCount)
+    {
+        anchoredOfIndex.assign(aliveCount, 0.f);
+        AZStd::unordered_map<AZ::u64, float> current;
+        current.reserve(aliveCount);
+        for (const auto& ribbon : sortedParticleIndices) {
+            // Oldest first: ids grow with birth, whichever way the ribbon itself is ordered.
+            AZStd::vector<AZ::u32> byBirth;
+            byBirth.reserve(ribbon.second.size());
+            for (const auto& entry : ribbon.second) {
+                byBirth.emplace_back(entry.first);
+            }
+            std::sort(byBirth.begin(), byBirth.end(), [this](AZ::u32 a, AZ::u32 b) {
+                return particle[a].id < particle[b].id;
+            });
+
+            const Particle* previous = nullptr;
+            float previousValue = 0.f;
+            for (AZ::u32 index : byBirth) {
+                const Particle& current_particle = particle[index];
+                float value = 0.f;
+                const auto known = anchoredDistances.find(current_particle.id);
+                if (known != anchoredDistances.end()) {
+                    value = known->second;
+                } else if (previous != nullptr) {
+                    // First time this particle is drawn: it continues from the one before it.
+                    value = previousValue + (current_particle.globalPosition - previous->globalPosition).GetLength();
+                }
+                current[current_particle.id] = value;
+                anchoredOfIndex[index] = value;
+                previous = &current_particle;
+                previousValue = value;
+            }
+        }
+        anchoredDistances.swap(current);
+    }
+
     void ParticleRibbonRender::Reset()
     {
         ribbonSegments.clear();
@@ -255,8 +297,12 @@ namespace SimuCore::ParticleCore {
         AZ::u32 vertexIdx = 0; // vertex index
         AZ::u32 indexIdx = 0; // indices index
         for (auto iter = ribbonSegments.begin(); iter != ribbonSegments.end(); ++iter) {
-            float preTileV = 0.f;
             float travelingDistance = 0.f;
+            // With Tile Distance, v is the particle's anchored distance in tiles; a Trail lists its particles newest first, so its v runs the other way.
+            const float tileSign = config.mode == TrailMode::TRAIL ? -1.f : 1.f;
+            auto anchoredV = [&](AZ::u32 particleIndex) {
+                return tileSign * anchoredOfIndex[particleIndex] / config.tilingDistance;
+            };
             auto totalDistance = ribbonDistances.at(iter->first);
             const float lengthDivisor = AZStd::max(totalDistance, AZ::Constants::FloatEpsilon);
             for (AZ::u32 segmentId = 0; segmentId < iter->second.size(); segmentId++) {
@@ -264,7 +310,7 @@ namespace SimuCore::ParticleCore {
                 Particle head = particle[segment.head];
                 Particle end = particle[segment.end];
 
-                float curTexV = bTileV ? preTileV : travelingDistance / totalDistance;
+                float curTexV = bTileV ? anchoredV(segment.head) : travelingDistance / totalDistance;
                 const bool entityAxis = IsEntityAxisFacing(config.facing);
                 AZ::Vector3 right = entityAxis ? EntityAxisVector(head, config.facing)
                                                : CalRightVector(world, config, segment.tangent0, head.globalPosition);
@@ -279,7 +325,7 @@ namespace SimuCore::ParticleCore {
                     auto pos = Math::CubicInterp<AZ::Vector3>(pair0, pair1, step, segment.segmentLength);
                     AZ::Color color = head.color.Lerp(end.color, step);
                     auto width = AZStd::lerp(head.scale.GetX(), end.scale.GetX(), step);
-                    curTexV = bTileV ? AZStd::lerp(preTileV, segment.tileV, step) :
+                    curTexV = bTileV ? AZStd::lerp(anchoredV(segment.head), anchoredV(segment.end), step) :
                             (pos.GetDistance(head.globalPosition) + travelingDistance) / totalDistance;
                     AZ::Vector3 up = segment.tangent0.Lerp(segment.tangent1, step);
                     right = entityAxis ? EntityAxisVector(head, config.facing).Lerp(EntityAxisVector(end, config.facing), step).GetNormalized()
@@ -292,13 +338,12 @@ namespace SimuCore::ParticleCore {
                 if (segmentId == iter->second.size() - 1) {
                     right = entityAxis ? EntityAxisVector(end, config.facing)
                                        : CalRightVector(world, config, segment.tangent1, end.globalPosition).GetNormalized();
-                    curTexV = bTileV ? segment.tileV : segment.distance / totalDistance;
+                    curTexV = bTileV ? anchoredV(segment.end) : segment.distance / totalDistance;
                     BufferInfo info{end.globalPosition, end.color,
                         right, end.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib, segment.distance / lengthDivisor};
                     FillEndVertex(info);
                     continue;
                 }
-                preTileV = segment.tileV;
                 travelingDistance = segment.distance;
             }
         }
