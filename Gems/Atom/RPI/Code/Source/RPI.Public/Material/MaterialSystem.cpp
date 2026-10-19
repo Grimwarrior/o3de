@@ -159,6 +159,12 @@ namespace AZ::RPI
             registry = materialInstanceData.m_textureSamplers.get();
         }
 
+        // A material SRG without an m_samplers array has no registry (shaders that declare their own Sampler members); its sampler properties have nothing to register.
+        if (!registry)
+        {
+            return nullptr;
+        }
+
         auto [sharedSamplerState, registered] = registry->RegisterTextureSampler(samplerState);
         if (materialTypeData.m_useSceneMaterialSrg && registered)
         {
@@ -180,6 +186,10 @@ namespace AZ::RPI
         {
             auto& materialInstanceData = materialTypeData.m_instanceData[materialInstanceIndex];
             registry = materialInstanceData.m_textureSamplers.get();
+        }
+        if (!registry)
+        {
+            return RHI::SamplerState{};
         }
         auto sharedSamplerState = registry->GetSharedSamplerState(samplerIndex);
         if (sharedSamplerState == nullptr)
