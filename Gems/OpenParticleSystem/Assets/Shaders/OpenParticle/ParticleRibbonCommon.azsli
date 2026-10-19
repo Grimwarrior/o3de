@@ -61,6 +61,12 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     float       m_distortStrength;
     float       m_distortSwirl;
     float       m_distortChromatic;
+    // The warp can follow its own pattern instead of the visible ribbon: a map (red times alpha) that tiles and scrolls on its own, inside the ribbon age, ends and sides
+    // but independent of the Opacity, the mask, the dissolve and the rim. 0 follows the visible ribbon, 1 follows the map.
+    Texture2D   m_distortMap;
+    float2      m_distortMapTiling;
+    float2      m_distortMapScroll;
+    float       m_distortMapMix;
 
     float3      m_emissiveColor;
     float       m_emissiveIntensity;
@@ -203,4 +209,32 @@ float4 ShadeRibbon(in VertexOutput input)
         MaterialSrg::m_emissiveIntensity, MaterialSrg::m_emissiveColor.rgb, o_emissiveEnabled, o_emissive_useTexture);
     color.rgb += emissiveValue;
     return color;
+}
+
+// What the ribbon keeps whatever its look: the fade with age, the soft ends and the soft sides. Distortion that follows its own map is shaped by this.
+float RibbonEnvelope(in VertexOutput input)
+{
+    const float across = abs(input.uv.x * 2.0 - 1.0);
+    float envelope = input.color.a;
+    if (MaterialSrg::m_edgeSoftness > 0.0001)
+    {
+        envelope *= 1.0 - smoothstep(1.0 - MaterialSrg::m_edgeSoftness, 1.0, across);
+    }
+    envelope *= smoothstep(0.0, max(MaterialSrg::m_startFade, 0.0001), input.lengthFraction)
+        * smoothstep(0.0, max(MaterialSrg::m_endFade, 0.0001), 1.0 - input.lengthFraction);
+    return envelope;
+}
+
+// The strength of the warp at a point: the visible ribbon alpha, the distortion map inside the ribbon envelope, or a blend of the two.
+float RibbonDistortAlpha(in VertexOutput input)
+{
+    const float visible = ShadeRibbon(input).a;
+    if (MaterialSrg::m_distortMapMix <= 0.0001)
+    {
+        return visible;
+    }
+    const float2 mapUv = input.uv * MaterialSrg::m_distortMapTiling + MaterialSrg::m_distortMapScroll * SceneSrg::m_time;
+    const float4 mapSample = MaterialSrg::m_distortMap.Sample(MaterialSrg::m_sampler, mapUv);
+    const float own = RibbonEnvelope(input) * saturate(mapSample.r * mapSample.a);
+    return lerp(visible, own, saturate(MaterialSrg::m_distortMapMix));
 }

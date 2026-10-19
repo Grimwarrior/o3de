@@ -504,6 +504,58 @@
                     }
                 },
                 {
+                    "name": "map",
+                    "displayName": "Distortion Map",
+                    "description": "Grey or alpha pattern (red times alpha) that shapes the warp when Map Mix is above 0. It follows the ribbon's age, ends and soft sides but not Opacity, the mask, the dissolve or the rim.",
+                    "type": "Image",
+                    "defaultValue": "Textures/OpenParticle/RibbonStreaks_greyscale.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortMap"
+                    }
+                },
+                {
+                    "name": "mapTiling",
+                    "displayName": "Map Tiling",
+                    "description": "Repeats of the distortion map across the ribbon (first) and along it (second).",
+                    "type": "Vector2",
+                    "defaultValue": [
+                        1.0,
+                        2.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortMapTiling"
+                    }
+                },
+                {
+                    "name": "mapScroll",
+                    "displayName": "Map Scroll",
+                    "description": "Scrolls the distortion map, in uv units per second.",
+                    "type": "Vector2",
+                    "defaultValue": [
+                        0.0,
+                        0.0
+                    ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortMapScroll"
+                    }
+                },
+                {
+                    "name": "mapMix",
+                    "displayName": "Map Mix",
+                    "description": "0 warps by the visible ribbon, so Opacity and the fades change the warp too. 1 warps by the distortion map alone, independent of the look.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_distortMapMix"
+                    }
+                },
+                {
                     "name": "chromatic",
                     "displayName": "Chromatic Split",
                     "description": "Splits the colour channels of the warped scene for a glassy fringe.",

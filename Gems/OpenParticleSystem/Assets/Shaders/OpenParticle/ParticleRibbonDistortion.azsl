@@ -20,14 +20,14 @@ float RibbonAlphaAt(in VertexOutput input, float2 uvOffset)
 {
     VertexOutput shifted = input;
     shifted.uv += uvOffset;
-    return ShadeRibbon(shifted).a;
+    return RibbonDistortAlpha(shifted);
 }
 
 PixelOutput MainPS(in VertexOutput input)
 {
     PixelOutput output;
 
-    const float alpha = ShadeRibbon(input).a;
+    const float alpha = RibbonDistortAlpha(input);
 
     // Direction the ribbon brightens in, from finite differences of its alpha in uv space (across and along the ribbon).
     const float2 d = float2(0.04, 0.04);
