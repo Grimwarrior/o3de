@@ -14,7 +14,7 @@ The **Particle Ribbon** output node lets a Material Canvas graph generate a ribb
 | Ribbon Float / Float2 / Float3 / Float4 / Color / Bool / Int / Uint Input | A value that becomes a property of the material, like the standard Material Inputs, but readable from the ribbon shader |
 | Ribbon Sample Texture | A texture and sampler that become material properties, sampled at the uv you connect |
 
-The standard Material Input and Sample Texture nodes read the material through the material pipeline's parameter struct, which the particle shaders do not have, so use the Ribbon versions of those.
+The standard Material Input and Sample Texture nodes work too: they read the material through the pipeline's parameter struct, and for an output node that declares its own material SRG (this one) Material Canvas turns those reads into reads of the SRG members. The Ribbon-named versions do the same thing without that rewrite.
 
 4. Save the graph; Material Canvas writes `<graph>.materialtype`, `<graph>.azsl`, `<graph>.shader` and `<graph>.material` next to it. Assign the `.material` to the emitter of a particle (or make a material from the generated material type).
 
