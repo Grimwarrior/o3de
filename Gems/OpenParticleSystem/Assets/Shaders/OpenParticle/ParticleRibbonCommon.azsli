@@ -3,8 +3,6 @@
 #include <viewsrg_all.srgi>
 #include <scenesrg_all.srgi>
 
-#define PIPELINE_HAS_PASS_SRG 0
-
 #include <Atom/Features/SrgSemantics.azsli>
 #include <Atom/RPI/ShaderResourceGroups/DefaultDrawSrg.azsli>
 #include <Atom/Features/PBR/DefaultObjectSrg.azsli>
@@ -24,6 +22,8 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     float2      m_uvTiling;
     float2      m_uvScroll;
     float       m_glow;
+    // Soft depth: the ribbon fades out within this many metres in front of a surface behind it, instead of cutting a hard line through it. 0 turns it off.
+    float       m_softDepthDistance;
 
     // Pattern: a mask texture that scrolls, thins the ribbon and can warp the base texture.
     Texture2D   m_maskMap;

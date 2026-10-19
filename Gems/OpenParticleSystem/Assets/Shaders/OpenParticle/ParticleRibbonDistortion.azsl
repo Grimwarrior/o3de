@@ -1,3 +1,6 @@
+// The distortion pass has its own pass SRG below, so the pipeline's is switched off.
+#define PIPELINE_HAS_PASS_SRG 0
+
 #include "ParticleRibbonCommon.azsli"
 
 // Same declaration as ParticleDistortion.azsl, which is where the pass takes the layout from.

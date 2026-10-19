@@ -1,9 +1,30 @@
+#include <viewsrg_all.srgi>
+#include <scenesrg_all.srgi>
+// The pass SRG of the forward passes gives the linear depth for the soft depth fade, laid out as the pipeline's own shaders declare it.
+#include <Atom/Features/Pipeline/Forward/ForwardPassSrg.azsli>
 #include "ParticleRibbonCommon.azsli"
+
+// Distance in front of the scene surface behind this pixel, in view space units; large when there is no depth to compare with.
+float SceneDepthGap(float4 fragmentPosition)
+{
+    float sceneDepth = PassSrg::m_linearDepthTexture.Load(int3(fragmentPosition.xy, 0)).r;
+    if (PassSrg::m_isOriginalDepth != 0)
+    {
+        sceneDepth = abs(ViewSrg::GetFarZTimesNearZ() / (ViewSrg::GetFarZMinusNearZ() * sceneDepth - ViewSrg::GetFarZ()));
+    }
+    // A depth of 0 means this pipeline has no depth to give; the fade then stays off instead of hiding the ribbon.
+    return sceneDepth > 0.0 ? sceneDepth - fragmentPosition.w : 1.0e8;
+}
 
 PixelOutput MainPS(in VertexOutput input)
 {
     PixelOutput output;
     float4 color = ShadeRibbon(input);
+
+    if (MaterialSrg::m_softDepthDistance > 0.0001)
+    {
+        color.a *= saturate(SceneDepthGap(input.position) / MaterialSrg::m_softDepthDistance);
+    }
 
     // Additive and subtractive blending ignore alpha, so the fade has to be in the colour.
     switch (o_blendMode)

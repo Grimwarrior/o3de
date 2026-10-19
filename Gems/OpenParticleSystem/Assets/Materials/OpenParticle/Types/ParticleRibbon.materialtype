@@ -106,6 +106,20 @@
                     }
                 },
                 {
+                    "name": "softDepthDistance",
+                    "displayName": "Soft Depth Distance",
+                    "description": "Fades the ribbon out over this many metres in front of any surface behind it, so it doesn't cut a hard line through the ground or a wall. 0 turns it off. Needs a pipeline that provides linear depth; the warp of the distortion pass is not softened.",
+                    "type": "Float",
+                    "min": 0.0,
+                    "max": 10.0,
+                    "softMax": 2.0,
+                    "defaultValue": 0.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_softDepthDistance"
+                    }
+                },
+                {
                     "name": "doubleSided",
                     "displayName": "Double-sided",
                     "description": "Whether to render back-faces or just front-faces.",
