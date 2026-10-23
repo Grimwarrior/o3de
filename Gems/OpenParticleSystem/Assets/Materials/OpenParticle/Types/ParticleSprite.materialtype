@@ -50,6 +50,11 @@
                 "name": "general",
                 "displayName": "General Settings",
                 "description": "General Settings."
+            },
+            {
+                "name": "erosion",
+                "displayName": "Alpha Erosion",
+                "description": "alpha erosion: the alpha is boosted, then everything under a threshold that rises with particle age is cut, so thin parts burn away first."
             }
         ],
         "properties": {
@@ -113,6 +118,191 @@
                     "connection": {
                         "type": "ShaderInput",
                         "name": "m_uvTiling"
+                    }
+                },
+                {
+                    "name": "brightness",
+                    "displayName": "Brightness",
+                    "description": "Multiplies the final colour, above 1 for HDR glow that blooms.",
+                    "type": "Float",
+                    "defaultValue": 1.0,
+                    "min": 0.0,
+                    "softMax": 50.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_brightness"
+                    }
+                },
+                {
+                    "name": "anchor",
+                    "displayName": "Anchor",
+                    "description": "Where the particle sits on a camera facing sprite, -1 to 1 per axis: (0, 0) centre, (0, -1) bottom edge so the sprite grows upward from the particle.",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.0, 0.0 ],
+                    "min": -1.0,
+                    "max": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_anchor"
+                    }
+                },
+                {
+                    "name": "upAxis",
+                    "displayName": "Up Axis",
+                    "description": "Camera Pos facing only: the axis the sprite stands along while it turns to face the camera. World Z keeps it upright; an entity axis follows the host's rotation, e.g. Entity Y runs flames along a blade.",
+                    "type": "Enum",
+                    "enumValues": [ "World Z", "Entity X", "Entity Y", "Entity Z" ],
+                    "defaultValue": "World Z",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_upAxis"
+                    }
+                }
+            ],
+            "erosion": [
+                {
+                    "name": "enable",
+                    "displayName": "Enable",
+                    "description": "Turns alpha erosion on.",
+                    "type": "Bool",
+                    "defaultValue": false,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionEnable"
+                    }
+                },
+                {
+                    "name": "alphaMultiplier",
+                    "displayName": "Alpha Multiplier",
+                    "description": "Boosts texture alpha x particle alpha before the threshold; high values give hard edged shapes.",
+                    "type": "Float",
+                    "defaultValue": 20.0,
+                    "min": 0.0,
+                    "softMax": 50.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionAlphaMultiplier"
+                    }
+                },
+                {
+                    "name": "thresholdStart",
+                    "displayName": "Threshold At Birth",
+                    "description": "Boosted alpha below this is cut when the particle spawns (FXR alphaThreshold / 255).",
+                    "type": "Float",
+                    "defaultValue": 0.125,
+                    "min": 0.0,
+                    "softMax": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionThresholdStart"
+                    }
+                },
+                {
+                    "name": "thresholdEnd",
+                    "displayName": "Threshold At Death",
+                    "description": "Threshold at the end of the particle's life; higher than the start erodes the shape as it ages.",
+                    "type": "Float",
+                    "defaultValue": 0.25,
+                    "min": 0.0,
+                    "softMax": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionThresholdEnd"
+                    }
+                },
+                {
+                    "name": "softness",
+                    "displayName": "Edge Softness",
+                    "description": "Width of the fade above the threshold; small values give crisp edges.",
+                    "type": "Float",
+                    "defaultValue": 0.25,
+                    "min": 0.001,
+                    "softMax": 2.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionSoftness"
+                    }
+                },
+                {
+                    "name": "noiseMap",
+                    "displayName": "Noise Map",
+                    "description": "Tiling noise (red channel) sampled twice with different scroll speeds.",
+                    "type": "Image",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseMap"
+                    }
+                },
+                {
+                    "name": "noiseTiling",
+                    "displayName": "Noise Tiling",
+                    "description": "Noise UV scale across the quad (FXR layer scale).",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.15, 0.15 ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseTiling"
+                    }
+                },
+                {
+                    "name": "noiseScroll1",
+                    "displayName": "Noise Scroll 1",
+                    "description": "UV per second of the first noise sample.",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.0, 0.25 ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseScroll1"
+                    }
+                },
+                {
+                    "name": "noiseScroll2",
+                    "displayName": "Noise Scroll 2",
+                    "description": "UV per second of the second noise sample.",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.0, 0.125 ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseScroll2"
+                    }
+                },
+                {
+                    "name": "noiseBoost",
+                    "displayName": "Noise Boost",
+                    "description": "Multiplies the averaged noise before it is clamped to 1.",
+                    "type": "Float",
+                    "defaultValue": 4.0,
+                    "min": 0.0,
+                    "softMax": 40.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseColorBoost"
+                    }
+                },
+                {
+                    "name": "noiseColorStrength",
+                    "displayName": "Noise On Colour",
+                    "description": "How much the noise darkens the colour (0 = off).",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseColorStrength"
+                    }
+                },
+                {
+                    "name": "noiseAlphaStrength",
+                    "displayName": "Noise On Alpha",
+                    "description": "How much the noise eats into the alpha before the threshold (0 = off).",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseAlphaStrength"
                     }
                 }
             ],

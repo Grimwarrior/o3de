@@ -30,6 +30,26 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     Texture2D   m_emissiveMap;
     uint        m_emissiveMapUvIndex;
 
+    float       m_brightness;
+    // Where the particle sits on the sprite, -1..1 per axis: (0, 0) centre, (0, -1) bottom edge so the sprite grows upward from it
+    float2      m_anchor;
+    // Camera Pos facing: 0 world Z up, 1/2/3 the host entity's X/Y/Z, so the sprite faces the camera while standing along that axis
+    uint        m_upAxis;
+
+    // Alpha erosion : alpha is boosted, then pixels below a threshold that rises with particle age are cut
+    bool        m_erosionEnable;
+    float       m_erosionAlphaMultiplier;
+    float       m_erosionThresholdStart;
+    float       m_erosionThresholdEnd;
+    float       m_erosionSoftness;
+    Texture2D   m_erosionNoiseMap;
+    float2      m_erosionNoiseTiling;
+    float2      m_erosionNoiseScroll1;
+    float2      m_erosionNoiseScroll2;
+    float       m_erosionNoiseColorStrength;
+    float       m_erosionNoiseColorBoost;
+    float       m_erosionNoiseAlphaStrength;
+
     Sampler m_sampler
     {
         MaxAnisotropy = 16;
@@ -71,16 +91,38 @@ struct VertexOutput
     float4 position : SV_Position;
     float4 color : COLOR;
     float2 uv : UV0;
+    // xy: quad uv (0..1, independent of the flipbook cell), z: per-particle random, w: normalized age
+    float4 erosion : UV1;
 };
 
 float3 GetPos(VertexInput input, float4x4 objectToWorld, float3 cameraDir, float3 up, float3 size) {
 
+    // quad z +1 is the bottom of the sprite, so an anchor at the bottom moves the corners by -1 in z; the roll then pivots around the anchor
+    float3 anchor = float3(MaterialSrg::m_anchor.x, 0.0, -MaterialSrg::m_anchor.y);
     float3 pos = mul(GetRotationFromLookAtMatrix(cameraDir, up, input.initRotation.w),
-        positions[input.vertexId].xyz * size.xyz);
+        (positions[input.vertexId].xyz - anchor) * size.xyz);
     pos = mul(AxisRadianToMatrix(float4(0, 1, 0, input.rotateVector.w)), pos);
+    if (input.up.w > 0.5)
+    {
+        // World Axes emitters: the corner offset is already in world axes, so only the particle position goes through the entity transform
+        return mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz + pos;
+    }
     pos += input.position.xyz;
     pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
     return pos;
+}
+
+float3 GetEntityAxisPos(VertexInput input, float4x4 objectToWorld)
+{
+    // the sprite stands along an axis of the host entity and turns around it to face the camera; spin is added to the roll
+    static const float3 axes[3] = { float3(1, 0, 0), float3(0, 1, 0), float3(0, 0, 1) };
+    float3 up = normalize(mul(objectToWorld, float4(axes[min(MaterialSrg::m_upAxis, 3u) - 1], 0.0)).xyz);
+    float3 worldPos = mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz;
+    float3 cameraDir = normalize(ViewSrg::m_worldPosition - worldPos);
+    float3 anchor = float3(MaterialSrg::m_anchor.x, 0.0, -MaterialSrg::m_anchor.y);
+    float3 corner = mul(GetRotationFromLookAtMatrix(cameraDir, up, input.initRotation.w + input.rotateVector.w),
+        (positions[input.vertexId].xyz - anchor) * input.scale.xyz);
+    return worldPos + corner;
 }
 
 float3 GetVelocityFacingPos(VertexInput input, float4x4 objectToWorld, float3 cameraDir) {
@@ -90,6 +132,10 @@ float3 GetVelocityFacingPos(VertexInput input, float4x4 objectToWorld, float3 ca
     float3x3 rotation = GetRotationFromLookAtMatrix(cameraDir, input.velocity.xyz);
     float3 pos = (input.scale.x < input.scale.z) ? mul(rotation, positions[input.vertexId].xyz * input.scale.xyz)
         : mul(rotation, positions[input.vertexId].xyz * float3(input.scale.z, input.scale.y, input.scale.x));
+    if (input.up.w > 0.5)
+    {
+        return mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz + pos;
+    }
     pos += input.position.xyz;
     pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
     return pos;
@@ -102,11 +148,6 @@ float3 GetCustomFacingPos(VertexInput input, float4x4 objectToWorld) {
     pos = mul(AxisRadianToMatrix(input.rotateVector), pos);
     pos += input.position.xyz;
     pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
-    if (input.up.w > 0.5)
-    {
-        // World Axes emitters: the corner offset is already in world axes, so only the particle position goes through the entity transform
-        return mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz + pos;
-    }
     return pos;
 }
 
@@ -124,6 +165,11 @@ VertexOutput MainVS(in VertexInput input, uint instanceId : SV_InstanceID)
     switch (o_facingMode)
     {
     case FacingMode::CameraPos:
+        if (MaterialSrg::m_upAxis > 0)
+        {
+            pos = GetEntityAxisPos(input, objectToWorld);
+            break;
+        }
         cameraDir = normalize(ViewSrg::m_worldPosition - worldOffset - input.position.xyz);
         pos = GetPos(input, objectToWorld, cameraDir, float3(0, 0, 1), input.scale.xyz);
         break;
@@ -132,10 +178,6 @@ VertexOutput MainVS(in VertexInput input, uint instanceId : SV_InstanceID)
         pos = GetPos(input, objectToWorld, cameraDir, input.up.xyz, float3(input.scale.x, input.scale.y, input.scale.x));
         break;
     case FacingMode::CameraRectangle:
-    if (input.up.w > 0.5)
-    {
-        return mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz + pos;
-    }
         cameraDir = -mul(ViewSrg::m_viewMatrixInverse, float4(0, 0, -1, 0)).xyz;
         pos = GetPos(input, objectToWorld, cameraDir, input.up.xyz, input.scale.xyz);
         break;
@@ -151,7 +193,25 @@ VertexOutput MainVS(in VertexInput input, uint instanceId : SV_InstanceID)
     output.position = mul(ViewSrg::m_viewProjectionMatrix, float4(pos, 1.0));
     output.uv = uvs[input.vertexId] / input.subuv.xy + input.subuv.zw;
     output.color = input.color;
+    output.erosion = float4(uvs[input.vertexId], input.position.w, input.scale.w);
     return output;
+}
+
+float4 ApplyErosion(float4 color, float4 erosion)
+{
+    // two scrolling samples of one noise texture, each offset per particle, break up the colour and optionally the alpha
+    float2 noiseUv = erosion.xy * MaterialSrg::m_erosionNoiseTiling;
+    float time = SceneSrg::m_time;
+    float n1 = MaterialSrg::m_erosionNoiseMap.Sample(MaterialSrg::m_sampler, noiseUv + erosion.z * float2(0.37, 0.61) + MaterialSrg::m_erosionNoiseScroll1 * time).r;
+    float n2 = MaterialSrg::m_erosionNoiseMap.Sample(MaterialSrg::m_sampler, noiseUv + erosion.z * float2(0.83, 0.19) + MaterialSrg::m_erosionNoiseScroll2 * time).r;
+    float noise = saturate((n1 + n2) * 0.5 * MaterialSrg::m_erosionNoiseColorBoost);
+    color.rgb *= lerp(1.0, noise, MaterialSrg::m_erosionNoiseColorStrength);
+    color.a *= lerp(1.0, noise, MaterialSrg::m_erosionNoiseAlphaStrength);
+
+    float threshold = lerp(MaterialSrg::m_erosionThresholdStart, MaterialSrg::m_erosionThresholdEnd, erosion.w);
+    float boosted = color.a * MaterialSrg::m_erosionAlphaMultiplier;
+    color.a = saturate((boosted - threshold) / max(MaterialSrg::m_erosionSoftness, 0.001));
+    return color;
 }
 
 struct PixelOutput
@@ -167,6 +227,11 @@ PixelOutput MainPS(in VertexOutput input)
     output.color = input.color * MaterialSrg::m_baseColorMap.Sample(MaterialSrg::m_sampler, baseUv);
     output.color.rgb *= MaterialSrg::m_baseColorTint;
     output.color.a *= MaterialSrg::m_opacityFactor;
+    if (MaterialSrg::m_erosionEnable)
+    {
+        output.color = ApplyErosion(output.color, input.erosion);
+    }
+    output.color.rgb *= MaterialSrg::m_brightness;
     float2 emissiveUv = uvs[MaterialSrg::m_emissiveMapUvIndex];
     float3 emissiveValue = GetEmissiveInput(MaterialSrg::m_emissiveMap, MaterialSrg::m_sampler, input.uv,
         MaterialSrg::m_emissiveIntensity, MaterialSrg::m_emissiveColor.rgb, o_emissiveEnabled, o_emissive_useTexture);

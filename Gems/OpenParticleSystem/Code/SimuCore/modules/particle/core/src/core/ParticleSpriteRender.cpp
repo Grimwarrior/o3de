@@ -39,9 +39,14 @@ namespace SimuCore::ParticleCore {
                 if (particle.hasLightEffect) {
                     positionBuffer[index] = particle.globalPosition;
                 }
-                particleVertex.position = AZ::Vector4(trans.TransformPoint(particle.globalPosition), 0.f);
+                // position.w: a fixed per-particle random in [0,1) hashed from the id, scale.w: normalized age; the sprite shader's erosion reads both
+                AZ::u64 h = particle.id * 0x9E3779B97F4A7C15ull;
+                h ^= h >> 32;
+                const float seed = static_cast<float>(h & 0xFFFFu) / 65536.f;
+                const float age = particle.lifeTime > 0.f ? std::clamp(particle.currentLife / particle.lifeTime, 0.f, 1.f) : 0.f;
+                particleVertex.position = AZ::Vector4(trans.TransformPoint(particle.globalPosition), seed);
                 particleVertex.color = particle.color;
-                particleVertex.scale = AZ::Vector4(particle.scale, 1.0f);
+                particleVertex.scale = AZ::Vector4(particle.scale, age);
                 particleVertex.up = AZ::Vector4(world.cameraUp, world.worldAxes ? 1.f : 0.f);
 
                 AZ::Vector3 vel = particle.velocity;
