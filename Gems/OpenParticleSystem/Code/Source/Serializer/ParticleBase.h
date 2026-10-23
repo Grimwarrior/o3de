@@ -140,6 +140,10 @@ namespace OpenParticle
         bool loop = true;
         // Unchecked keeps the emitter in the graph but stops it simulating and drawing. Files from before this setting load as enabled.
         bool enabled = true;
+        // Opt-in for world-space emitters: velocity, forces and camera-facing sprites use world axes instead of the host entity's.
+        bool worldAxes = false;
+        // World-space emitters: how much of the emitter's own movement (0 to 1) live particles take over, so they trail a moving blade.
+        float followEmitter = 0.f;
     };
 
     struct SingleBurst

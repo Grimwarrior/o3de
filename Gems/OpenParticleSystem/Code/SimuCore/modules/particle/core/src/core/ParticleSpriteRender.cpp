@@ -42,7 +42,7 @@ namespace SimuCore::ParticleCore {
                 particleVertex.position = AZ::Vector4(trans.TransformPoint(particle.globalPosition), 0.f);
                 particleVertex.color = particle.color;
                 particleVertex.scale = AZ::Vector4(particle.scale, 1.0f);
-                particleVertex.up = AZ::Vector4(world.cameraUp, 0.f);
+                particleVertex.up = AZ::Vector4(world.cameraUp, world.worldAxes ? 1.f : 0.f);
 
                 AZ::Vector3 vel = particle.velocity;
                 if (vel.IsClose(AZ::Vector3::CreateZero())) {

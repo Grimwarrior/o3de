@@ -45,6 +45,10 @@ namespace SimuCore::ParticleCore {
             bool loop = true;
             // A disabled emitter stays in the system (emitter indexes and event links keep their meaning) but neither simulates nor draws.
             bool disabled = false;
+            // Opt-in: a world-space emitter authors velocity, forces and camera-facing sprites in world axes, whatever the host entity's rotation
+            bool worldAxes = false;
+            // World-space emitters only: the share (0 to 1) of the emitter's own movement that live particles take over each frame
+            float followEmitter = 0.f;
         };
 
         ParticleEmitter(const ParticleEmitter::Config& cfg, EmitterCreateInfo createInfo);
@@ -242,6 +246,9 @@ namespace SimuCore::ParticleCore {
         float currTime = 0.f;
         bool started = false;
         float moveDistance = 0.f;
+        // Emitter movement since the last update, applied to live particles by Follow Emitter
+        AZ::Vector3 pendingFollow = AZ::Vector3::CreateZero();
+        void ApplyFollow();
         AZ::Transform emitterTransform;
         MeshSampleType meshSampleType = MeshSampleType::BONE;
 

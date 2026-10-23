@@ -388,7 +388,7 @@ namespace SimuCore::ParticleCore {
         BaseInfo baseInfo;
         float tickTime = 0.0f;
         bool localSpace = false;
-        bool padding0 = false;
+        bool worldAxes = false;
         bool padding1 = false;
         bool padding2 = false;
     };
@@ -545,6 +545,7 @@ namespace SimuCore::ParticleCore {
         AZ::Vector3 cameraRight;
         AZ::Vector3 axisZ;
         AZ::Transform emitterTransform;
+        bool worldAxes = false;
     };
 
     enum class BufferUsage : AZ::u8 {

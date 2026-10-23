@@ -40,7 +40,9 @@ namespace OpenParticle
                 ->Field("localSpace", &SimuCore::ParticleCore::ParticleEmitter::Config::localSpace)
                 ->Field("duration", &SimuCore::ParticleCore::ParticleEmitter::Config::duration)
                 ->Field("loop", &SimuCore::ParticleCore::ParticleEmitter::Config::loop)
-                ->Field("disabled", &SimuCore::ParticleCore::ParticleEmitter::Config::disabled);
+                ->Field("disabled", &SimuCore::ParticleCore::ParticleEmitter::Config::disabled)
+                ->Field("worldAxes", &SimuCore::ParticleCore::ParticleEmitter::Config::worldAxes)
+                ->Field("followEmitter", &SimuCore::ParticleCore::ParticleEmitter::Config::followEmitter);
 
             serializeContext->Enum<SimuCore::ParticleCore::SimulateType>()
                 ->Value("CPU", SimuCore::ParticleCore::SimulateType::CPU)

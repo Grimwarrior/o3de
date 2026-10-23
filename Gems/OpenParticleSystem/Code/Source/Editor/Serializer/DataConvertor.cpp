@@ -138,6 +138,8 @@ namespace OpenParticle
         runtimeData.maxSize = editData.maxSize;
         runtimeData.loop = editData.loop;
         runtimeData.disabled = !editData.enabled;
+        runtimeData.worldAxes = editData.worldAxes;
+        runtimeData.followEmitter = editData.followEmitter;
     }
 
     void DataConvertor::ToRuntime(OpenParticle::EmitBurstList& editData, SimuCore::ParticleCore::EmitBurstList& runtimeData)

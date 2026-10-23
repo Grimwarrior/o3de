@@ -183,7 +183,9 @@ namespace SimuCore::ParticleCore {
         emitterInfo.duration = cfg.duration;
         emitterInfo.type = InfoType::UPDATE;
 
-        render.first->Render(data, emitterInfo, driver, particlePool, world, item);
+        WorldInfo emitterWorld = world;
+        emitterWorld.worldAxes = cfg.worldAxes;
+        render.first->Render(data, emitterInfo, driver, particlePool, emitterWorld, item);
     }
 
     float ParticleEmitter::EndTime() const
@@ -274,6 +276,11 @@ namespace SimuCore::ParticleCore {
                             se.effector->Execute(se.data, spawnInfo, particle);
                         }
                         particle.spawnTrans = emitterTransform;
+                        if (!cfg.localSpace && cfg.worldAxes)
+                        {
+                            // World-space particles are authored in world axes; their motion is integrated in the spawn frame, so turn the velocity into it once
+                            particle.velocity = emitterTransform.GetInverse().TransformVector(particle.velocity);
+                        }
                         particle.globalPosition = emitterTransform.TransformPoint(particle.localPosition);
                         particle.rotateAroundPoint.SetW(i * 2.f * AZ::Constants::Pi / alive);
                         HandleEvents(relatedSpawnEvent, relatedInheritanceEvent, particle);
@@ -318,6 +325,11 @@ namespace SimuCore::ParticleCore {
                             se.effector->Execute(se.data, spawnInfo, particle);
                         }
                         particle.spawnTrans = emitterTransform;
+                        if (!cfg.localSpace && cfg.worldAxes)
+                        {
+                            // World-space particles are authored in world axes; their motion is integrated in the spawn frame, so turn the velocity into it once
+                            particle.velocity = emitterTransform.GetInverse().TransformVector(particle.velocity);
+                        }
                         particle.globalPosition = emitterTransform.TransformPoint(particle.localPosition);
                         particle.rotateAroundPoint.SetW(i * 2.f * AZ::Constants::Pi / alive);
                         HandleEvents(eventInfo, inheritance, particle);
@@ -380,6 +392,7 @@ namespace SimuCore::ParticleCore {
 
     void ParticleEmitter::Update(const AZStd::vector<ParticleEventInfo>& spawnEvents, const AZStd::vector<InheritanceSpawn*>& spawnInheritances, AZ::u32 beginPos)
     {
+        ApplyFollow();
         if (particlePool.Alive() == 0) {
             return;
         }
@@ -390,6 +403,7 @@ namespace SimuCore::ParticleCore {
         updateInfo.baseInfo.type = InfoType::UPDATE;
         updateInfo.randomStream = randomStream;
         updateInfo.localSpace = cfg.localSpace;
+        updateInfo.worldAxes = cfg.worldAxes;
         updateInfo.emitterTrans = emitterTransform;
         updateInfo.front = worldFront;
         updateInfo.maxExtend = maxExtend;
@@ -437,6 +451,7 @@ namespace SimuCore::ParticleCore {
 
     void ParticleEmitter::Update(float delta, AZ::u32 begin)
     {
+        ApplyFollow();
         if (particlePool.Alive() == 0) {
             return;
         }
@@ -448,6 +463,7 @@ namespace SimuCore::ParticleCore {
         updateInfo.tickTime = delta;
         updateInfo.randomStream = randomStream;
         updateInfo.localSpace = cfg.localSpace;
+        updateInfo.worldAxes = cfg.worldAxes;
         updateInfo.emitterTrans = emitterTransform;
         updateInfo.front = worldFront;
         updateInfo.maxExtend = maxExtend;
@@ -542,7 +558,33 @@ namespace SimuCore::ParticleCore {
 
     void ParticleEmitter::SetEmitterTransform(const AZ::Transform& transform)
     {
+        const AZ::Vector3 delta = transform.GetTranslation() - emitterTransform.GetTranslation();
         emitterTransform = transform;
+        // a jump over 20 m is a teleport or the first placement, not movement to follow
+        if (delta.GetLengthSq() < 400.f)
+        {
+            pendingFollow += delta;
+        }
+    }
+
+    void ParticleEmitter::ApplyFollow()
+    {
+        const AZ::Vector3 delta = pendingFollow;
+        pendingFollow = AZ::Vector3::CreateZero();
+        const auto& cfg = *dataPool->Data<Config>(config);
+        if (cfg.localSpace || cfg.followEmitter <= 0.f || particlePool.Alive() == 0 || delta.IsZero())
+        {
+            return;
+        }
+        const AZ::Vector3 shift = delta * cfg.followEmitter;
+        particlePool.Event(0, [&shift](Particle* particles, AZ::u32 begin, AZ::u32 end) {
+            for (AZ::u32 i = begin; i < end; ++i)
+            {
+                Particle& particle = particles[i];
+                particle.globalPosition += shift;
+                particle.localPosition += particle.spawnTrans.GetInverse().TransformVector(shift);
+            }
+        });
     }
 
     void ParticleEmitter::ResetEventPool(AZ::u32 emitterId, ParticleEventType type)

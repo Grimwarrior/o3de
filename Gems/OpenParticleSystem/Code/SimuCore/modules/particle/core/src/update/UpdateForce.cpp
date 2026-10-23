@@ -14,7 +14,13 @@
 namespace SimuCore::ParticleCore {
     void UpdateConstForce::Execute(const UpdateConstForce* data, const UpdateInfo& info, Particle& particle)
     {
-        particle.velocity += CalcDistributionTickValue(data->force, info.baseInfo, particle) * info.tickTime;
+        AZ::Vector3 force = CalcDistributionTickValue(data->force, info.baseInfo, particle);
+        if (!info.localSpace && info.worldAxes)
+        {
+            // a world-space particle moves in its spawn frame, so a world-axis force is turned into it
+            force = particle.spawnTrans.GetInverse().TransformVector(force);
+        }
+        particle.velocity += force * info.tickTime;
     }
 
     void UpdateConstForce::UpdateDistPtr(UpdateConstForce* data, const Distribution& distribution)

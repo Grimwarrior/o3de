@@ -102,6 +102,11 @@ float3 GetCustomFacingPos(VertexInput input, float4x4 objectToWorld) {
     pos = mul(AxisRadianToMatrix(input.rotateVector), pos);
     pos += input.position.xyz;
     pos = mul(objectToWorld, float4(pos, 1.0)).xyz;
+    if (input.up.w > 0.5)
+    {
+        // World Axes emitters: the corner offset is already in world axes, so only the particle position goes through the entity transform
+        return mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz + pos;
+    }
     return pos;
 }
 
@@ -127,6 +132,10 @@ VertexOutput MainVS(in VertexInput input, uint instanceId : SV_InstanceID)
         pos = GetPos(input, objectToWorld, cameraDir, input.up.xyz, float3(input.scale.x, input.scale.y, input.scale.x));
         break;
     case FacingMode::CameraRectangle:
+    if (input.up.w > 0.5)
+    {
+        return mul(objectToWorld, float4(input.position.xyz, 1.0)).xyz + pos;
+    }
         cameraDir = -mul(ViewSrg::m_viewMatrixInverse, float4(0, 0, -1, 0)).xyz;
         pos = GetPos(input, objectToWorld, cameraDir, input.up.xyz, input.scale.xyz);
         break;

@@ -151,7 +151,9 @@ namespace OpenParticle
                 ->Field("localSpace", &OpenParticle::EmitterConfig::localSpace)
                 ->Field("duration", &OpenParticle::EmitterConfig::duration)
                 ->Field("loop", &OpenParticle::EmitterConfig::loop)
-                ->Field("enabled", &OpenParticle::EmitterConfig::enabled);
+                ->Field("enabled", &OpenParticle::EmitterConfig::enabled)
+                ->Field("worldAxes", &OpenParticle::EmitterConfig::worldAxes)
+                ->Field("followEmitter", &OpenParticle::EmitterConfig::followEmitter);
 
             serializeContext->Class<OpenParticle::SingleBurst>()
                 ->Version(0)
@@ -551,6 +553,15 @@ namespace OpenParticle
                         AZ::Edit::UIHandlers::CheckBox, &OpenParticle::EmitterConfig::enabled, QT_TRANSLATE_NOOP("OpenParticleSystem", "Enabled"),
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Unchecked keeps the emitter in the particle but stops it simulating and drawing."))
                     ->DataElement(
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::CheckBox, &OpenParticle::EmitterConfig::worldAxes, QT_TRANSLATE_NOOP("OpenParticleSystem", "World Axes"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "For emitters that are not in Local Space: velocity, forces and camera-facing sprites use world axes (Z is up) whatever the host entity's rotation."))
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::Slider, &OpenParticle::EmitterConfig::followEmitter, QT_TRANSLATE_NOOP("OpenParticleSystem", "Follow Emitter"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "For emitters that are not in Local Space: how much of the emitter's movement live particles take over (0 stay where they are, 1 move with the emitter). Rotation is not followed."))
+                        ->Attribute(AZ::Edit::Attributes::Min, 0.f)
+                        ->Attribute(AZ::Edit::Attributes::Max, 1.f)
+                        ->Attribute(AZ::Edit::Attributes::Step, 0.05f)
                         AZ::Edit::UIHandlers::Default, &OpenParticle::EmitterConfig::type, QT_TRANSLATE_NOOP("OpenParticleSystem", "Simulate Type"),
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "The simulation type of the emitter."))
                         ->Attribute(AZ::Edit::Attributes::ReadOnly, true)
