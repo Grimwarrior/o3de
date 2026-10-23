@@ -406,6 +406,7 @@ namespace OpenParticle
                 ->Attribute("CHECK_PARAM", &CheckParam<OpenParticle::UpdateSubUv>)
                 ->Field("framePerSecond", &OpenParticle::UpdateSubUv::framePerSecond)
                 ->Field("frameNum", &OpenParticle::UpdateSubUv::frameNum)
+                ->Field("randomStartFrames", &OpenParticle::UpdateSubUv::randomStartFrames)
                 ->Field("spawnOnly", &OpenParticle::UpdateSubUv::spawnOnly)
                 ->Field("IndexByEventOrder", &OpenParticle::UpdateSubUv::IndexByEventOrder);
 
@@ -553,7 +554,6 @@ namespace OpenParticle
                         AZ::Edit::UIHandlers::CheckBox, &OpenParticle::EmitterConfig::enabled, QT_TRANSLATE_NOOP("OpenParticleSystem", "Enabled"),
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Unchecked keeps the emitter in the particle but stops it simulating and drawing."))
                     ->DataElement(
-                    ->DataElement(
                         AZ::Edit::UIHandlers::CheckBox, &OpenParticle::EmitterConfig::worldAxes, QT_TRANSLATE_NOOP("OpenParticleSystem", "World Axes"),
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "For emitters that are not in Local Space: velocity, forces and camera-facing sprites use world axes (Z is up) whatever the host entity's rotation."))
                     ->DataElement(
@@ -562,6 +562,7 @@ namespace OpenParticle
                         ->Attribute(AZ::Edit::Attributes::Min, 0.f)
                         ->Attribute(AZ::Edit::Attributes::Max, 1.f)
                         ->Attribute(AZ::Edit::Attributes::Step, 0.05f)
+                    ->DataElement(
                         AZ::Edit::UIHandlers::Default, &OpenParticle::EmitterConfig::type, QT_TRANSLATE_NOOP("OpenParticleSystem", "Simulate Type"),
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "The simulation type of the emitter."))
                         ->Attribute(AZ::Edit::Attributes::ReadOnly, true)
@@ -1259,6 +1260,13 @@ namespace OpenParticle
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Frame Per Second"), QT_TRANSLATE_NOOP("OpenParticleSystem", "The frames per second."))
                         ->Attribute(AZ::Edit::Attributes::Min, 0)
                         ->Attribute(AZ::Edit::Attributes::Max, 1000000)
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::Default, &OpenParticle::UpdateSubUv::randomStartFrames,
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Random Start Frames"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Each particle starts on a random frame from 0 to this value, then plays on at Frame Per Second. 0 starts every particle on frame 0."))
+                        ->Attribute(AZ::Edit::Attributes::Min, 0)
+                        ->Attribute(AZ::Edit::Attributes::Max, 1000000)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateSubUv::IsAnimated)
                     ->DataElement(
                         AZ::Edit::UIHandlers::Default, &OpenParticle::UpdateSubUv::spawnOnly,
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Spawn Only"), QT_TRANSLATE_NOOP("OpenParticleSystem", "Only update subUV once when particle spawn, FramePerSecond option would be ignored"))

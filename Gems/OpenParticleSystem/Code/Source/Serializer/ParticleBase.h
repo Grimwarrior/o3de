@@ -557,9 +557,11 @@ namespace OpenParticle
     {
         AZ_CLASS_ALLOCATOR(UpdateSubUv, AZ::SystemAllocator, 0);
         void CheckParam();
+        bool IsAnimated() const { return !spawnOnly; }
 
         AZ::u32 framePerSecond = 30;
         AZ::u32 frameNum = 1;
+        AZ::u32 randomStartFrames = 0;
         bool spawnOnly = false;
         bool IndexByEventOrder = false;
     };

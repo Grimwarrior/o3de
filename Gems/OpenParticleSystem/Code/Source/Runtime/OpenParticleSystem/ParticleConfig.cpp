@@ -271,6 +271,7 @@ namespace OpenParticle
                 ->Version(0)
                 ->Field("framePerSecond", &SimuCore::ParticleCore::UpdateSubUv::framePerSecond)
                 ->Field("frameNum", &SimuCore::ParticleCore::UpdateSubUv::frameNum)
+                ->Field("randomStartFrames", &SimuCore::ParticleCore::UpdateSubUv::randomStartFrames)
                 ->Field("spawnOnly", &SimuCore::ParticleCore::UpdateSubUv::spawnOnly)
                 ->Field("IndexByEventOrder", &SimuCore::ParticleCore::UpdateSubUv::IndexByEventOrder);
 

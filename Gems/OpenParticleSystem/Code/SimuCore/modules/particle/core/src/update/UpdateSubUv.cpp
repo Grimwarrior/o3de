@@ -24,6 +24,12 @@ namespace SimuCore::ParticleCore {
             particle.subUVFrame = 0;
         } else {
             AZ::u32 currentFrame = static_cast<AZ::u32>(std::floor(data->framePerSecond * particle.currentLife));
+            if (data->randomStartFrames > 0) {
+                // the start frame is hashed from the particle id, so it stays fixed for the particle's life without extra state
+                AZ::u64 h = particle.id * 0x9E3779B97F4A7C15ull;
+                h ^= h >> 29;
+                currentFrame += static_cast<AZ::u32>(h % (static_cast<AZ::u64>(data->randomStartFrames) + 1));
+            }
             particle.subUVFrame = currentFrame % data->frameNum;
         }
     }

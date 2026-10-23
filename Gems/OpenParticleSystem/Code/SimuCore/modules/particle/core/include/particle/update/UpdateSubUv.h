@@ -19,6 +19,8 @@ namespace SimuCore::ParticleCore {
 
         AZ::u32 framePerSecond = 30;
         AZ::u32 frameNum = 1;
+        // each particle starts on a random frame in [0, randomStartFrames], then plays on at framePerSecond
+        AZ::u32 randomStartFrames = 0;
 
         // only update subUV when particle spawn
         bool spawnOnly{false};

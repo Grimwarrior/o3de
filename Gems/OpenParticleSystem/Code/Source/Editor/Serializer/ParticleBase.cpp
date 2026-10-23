@@ -289,6 +289,7 @@ namespace OpenParticle
     {
         frameNum = AZStd::clamp<AZ::u32>(frameNum, 1u, 1000000u);
         framePerSecond = AZStd::clamp<AZ::u32>(framePerSecond, 0u, 1000000u);
+        randomStartFrames = AZStd::clamp<AZ::u32>(randomStartFrames, 0u, 1000000u);
     }
 
     void UpdateRotateAroundPoint::CheckParam()
