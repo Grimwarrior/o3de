@@ -11,6 +11,7 @@
 #include <Document/ParticleDocumentBus.h>
 #include <Window/LevelOfDetailInspectorNotifyBus.h>
 #include <QMessageBox>
+#include <QTimer>
 
 namespace OpenParticleSystemEditor
 {
@@ -464,15 +465,24 @@ namespace OpenParticleSystemEditor
                     moduleData = static_cast<OpenParticle::UpdateRotateAroundPoint*>(instance);
                     if (moduleData->xAxis.Cross(moduleData->yAxis).IsZero())
                     {
-                        QMessageBox::information(this, tr("Warning"), tr("The two axis' are parallelism!"));
                         moduleData->xAxis = m_updateRotateAroundPoint.xAxis;
                         moduleData->yAxis = m_updateRotateAroundPoint.yAxis;
                         parent->WriteRaw(instance, parent->GetClassMetadata()->m_typeId);
                         auto className =
                             m_sourceData->m_detailConstant.classNames[OpenParticle::ParticleSourceData::DetailConstant::VELOCITY_INDEX];
-                        auto [moduleName, typeId, listIndex] = m_sourceData->m_detailConstant.moduleClasses.at(
-                            className)[OpenParticle::ParticleSourceData::DetailConstant::VelocityIndex::VELOCITY_ROTATEAROUNDPOINT];
-                        m_propertyEditorWidgets[moduleName]->Refresh();
+                        const AZStd::string moduleName = AZStd::get<OpenParticle::ParticleSourceData::DetailConstant::MODULE_NAME>(
+                            m_sourceData->m_detailConstant.moduleClasses.at(
+                                className)[OpenParticle::ParticleSourceData::DetailConstant::VelocityIndex::VELOCITY_ROTATEAROUNDPOINT]);
+                        // The spin box that sent this edit is still inside its key handler, so the warning's nested event loop and the rebuild wait until it returns.
+                        QTimer::singleShot(0, this, [this, moduleName]()
+                            {
+                                QMessageBox::information(this, tr("Warning"), tr("The two axis' are parallelism!"));
+                                auto widget = m_propertyEditorWidgets.find(moduleName);
+                                if (widget != m_propertyEditorWidgets.end() && widget->second)
+                                {
+                                    widget->second->Refresh();
+                                }
+                            });
                         return;
                     }
                 }
@@ -524,13 +534,21 @@ namespace OpenParticleSystemEditor
             AZ::Vector3* axis = static_cast<AZ::Vector3*>(instance);
             if (axis->IsZero())
             {
-                QMessageBox::information(this, tr("Warning"), tr("The Axis cannot be zero!"));
-                *axis = m_lastAxis;
+                *axis = m_lastAxis.IsZero() ? AZ::Vector3(0.f, 1.f, 0.f) : m_lastAxis;
                 pNode->WriteRaw(instance, pNode->GetElementMetadata()->m_typeId);
                 const auto& className = m_sourceData->m_detailConstant.classNames[classIndex];
-                const auto& moduleName = AZStd::get<OpenParticle::ParticleSourceData::DetailConstant::MODULE_NAME>(
+                const AZStd::string moduleName = AZStd::get<OpenParticle::ParticleSourceData::DetailConstant::MODULE_NAME>(
                     m_sourceData->m_detailConstant.moduleClasses.at(className)[moduleIndex]);
-                m_propertyEditorWidgets[moduleName]->Refresh();
+                // The spin box that sent this edit is still inside its key handler, so the warning's nested event loop and the rebuild wait until it returns.
+                QTimer::singleShot(0, this, [this, moduleName]()
+                    {
+                        QMessageBox::information(this, tr("Warning"), tr("The Axis cannot be zero!"));
+                        auto widget = m_propertyEditorWidgets.find(moduleName);
+                        if (widget != m_propertyEditorWidgets.end() && widget->second)
+                        {
+                            widget->second->Refresh();
+                        }
+                    });
                 return true;
             }
         }
