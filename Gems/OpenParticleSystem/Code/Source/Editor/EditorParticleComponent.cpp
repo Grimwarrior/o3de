@@ -117,6 +117,15 @@ namespace OpenParticle
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
                     ->DataElement(AZ::Edit::UIHandlers::Color, &EmitterOverrideSettings::m_color, QT_TRANSLATE_NOOP("OpenParticleSystem", "RGB"), "")
                         ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::m_overrideColor)
+                    ->DataElement(AZ::Edit::UIHandlers::CheckBox, &EmitterOverrideSettings::m_overrideColorOverLife, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color Over Lifetime"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the colour and alpha gradient over each particle's life; "
+                            "only applies to emitters that have the Color Over Lifetime module"))
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &EmitterOverrideSettings::m_colorOverLife, QT_TRANSLATE_NOOP("OpenParticleSystem", "Keys"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient stops, blended linearly; the first key holds before its time and the last after"))
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::m_overrideColorOverLife)
+                        ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+                        ->Attribute(AZ::Edit::Attributes::IndexedChildNameLabelOverride, &EmitterOverrideSettings::GetColorKeyLabel)
                     ->DataElement(AZ::Edit::UIHandlers::CheckBox, &EmitterOverrideSettings::m_overrideForce, QT_TRANSLATE_NOOP("OpenParticleSystem", "Force"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the emitter's constant force such as gravity or wind"))
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
@@ -128,6 +137,18 @@ namespace OpenParticle
                     ->DataElement(AZ::Edit::UIHandlers::Default, &EmitterOverrideSettings::m_flipbookFps, QT_TRANSLATE_NOOP("OpenParticleSystem", "Frames Per Second"), "")
                         ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::m_overrideFlipbookFps)
                         ->Attribute(AZ::Edit::Attributes::Min, 0.0f);
+
+                editContext->Class<ParticleColorKey>(QT_TRANSLATE_NOOP("OpenParticleSystem", "ParticleColorKey"), "")
+                    ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
+                        ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+                    ->DataElement(AZ::Edit::UIHandlers::Slider, &ParticleColorKey::m_time, QT_TRANSLATE_NOOP("OpenParticleSystem", "Time"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "0 is the particle's birth and 1 its death"))
+                        ->Attribute(AZ::Edit::Attributes::Min, 0.0f)
+                        ->Attribute(AZ::Edit::Attributes::Max, 1.0f)
+                        ->Attribute(AZ::Edit::Attributes::Step, 0.01f)
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::AttributesAndValues)
+                    ->DataElement(AZ::Edit::UIHandlers::Color, &ParticleColorKey::m_color, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color"), "")
+                        ->Attribute("AlphaChannel", true);
             }
         }
 

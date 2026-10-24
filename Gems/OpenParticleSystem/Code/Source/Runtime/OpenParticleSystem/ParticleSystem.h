@@ -115,6 +115,7 @@ namespace OpenParticle
         size_t m_lastLodLevel = 0;
         AZ::Render::TransformServiceFeatureProcessorInterface::ObjectId m_objectId;
         AZStd::unique_ptr<SimuCore::ParticleCore::ParticleSystem> m_particleSystem;
+        OverrideCurves m_overrideCurves;
         AZStd::unordered_map<const SimuCore::ParticleCore::ParticleEmitter*, EmitterInstance> m_emitterInstances;
         AZ::Transform m_transform;
         AZStd::unordered_map <AZ::u32,

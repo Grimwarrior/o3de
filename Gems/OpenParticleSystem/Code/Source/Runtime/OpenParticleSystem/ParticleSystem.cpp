@@ -141,6 +141,7 @@ namespace OpenParticle
     void ParticleSystem::PostLoad()
     {
         m_particleSystem = AZStd::make_unique<SimuCore::ParticleCore::ParticleSystem>();
+        m_overrideCurves.clear();
         m_asset->GetParticleArchive() << *m_particleSystem;
         m_particleSystem->Play();
 
@@ -166,7 +167,7 @@ namespace OpenParticle
         m_timeScale = overrides.m_playbackSpeed.m_set ? overrides.m_playbackSpeed.m_value : 1.0f;
         if (m_particleSystem)
         {
-            overrides.Apply(*m_particleSystem);
+            overrides.Apply(*m_particleSystem, m_overrideCurves);
         }
     }
 

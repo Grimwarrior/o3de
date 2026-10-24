@@ -9,7 +9,9 @@
 #include "ParticleOverrides.h"
 
 #include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/std/sort.h>
 
+#include <particle/core/ParticleCurve.h>
 #include <particle/core/ParticleEmitter.h>
 #include <particle/core/ParticleSystem.h>
 #include <particle/emit/ParticleEmit.h>
@@ -64,7 +66,54 @@ namespace OpenParticle
             }
         }
 
-        void ApplyToEmitter(Core::ParticleEmitter& emitter, const EmitterOverrides& o)
+        // The lifetime module replaces a particle's colour every frame, so the gradient goes into its four channels. Keys are
+        // clamped to 0-1 by the curve, so each channel is divided by its peak, which becomes the curve's value factor.
+        void SetColorCurves(
+            Core::ValueObjColor& object,
+            AZStd::array<Core::ParticleCurve*, 4>& curves,
+            Core::ParticleSystem& system,
+            const AZStd::vector<ParticleColorKey>& keys)
+        {
+            for (AZ::u32 channel = 0; channel < 4; ++channel)
+            {
+                Core::ParticleCurve*& curve = curves[channel];
+                if (curve == nullptr)
+                {
+                    curve = system.AddCurve(
+                        Core::CurveExtrapMode::CONSTANT, Core::CurveExtrapMode::CONSTANT, 1.0f, 1.0f, Core::CurveTickMode::PARTICLE_LIFETIME);
+                }
+                for (size_t index = curve->GetKeyPoints().size(); index > 0; --index)
+                {
+                    curve->DeleteKeyPoint(static_cast<AZ::u32>(index - 1));
+                }
+
+                float peak = 1.0f;
+                for (const auto& key : keys)
+                {
+                    peak = AZStd::max(peak, key.m_color.GetElement(static_cast<int32_t>(channel)));
+                }
+                curve->SetValueFactor(peak);
+                // Keys arrive sorted, and the curve only places a key correctly when it is appended in time order.
+                for (const auto& key : keys)
+                {
+                    curve->AddKeyPoint(key.m_time, key.m_color.GetElement(static_cast<int32_t>(channel)) / peak, Core::KeyPointInterpMode::LINEAR);
+                }
+                curve->NormalizeKeyPoints();
+
+                object.distributions[channel] = curve;
+                // Index 0 means no asset distribution, so relinking the asset's curves leaves this pointer alone.
+                object.distIndex[channel] = 0;
+            }
+            object.distType = Core::DistributionType::CURVE;
+            object.isUniform = false;
+        }
+
+        void ApplyToEmitter(
+            Core::ParticleSystem& system,
+            AZ::u32 emitterId,
+            OverrideCurves& curves,
+            Core::ParticleEmitter& emitter,
+            const EmitterOverrides& o)
         {
             if (o.m_loop.m_set)
             {
@@ -102,6 +151,13 @@ namespace OpenParticle
                     SetColorRgb(data->currentColor, o.m_color.m_value);
                 }
             }
+            if (o.m_colorOverLife.m_set)
+            {
+                if (auto* data = FindData<Core::UpdateColor>(emitter.GetUpdateEffectors()))
+                {
+                    SetColorCurves(data->currentColor, curves[emitterId], system, o.m_colorOverLife.m_value);
+                }
+            }
             if (o.m_force.m_set)
             {
                 if (auto* data = FindData<Core::UpdateConstForce>(emitter.GetUpdateEffectors()))
@@ -121,7 +177,7 @@ namespace OpenParticle
         bool HasAny(const EmitterOverrides& o)
         {
             return (o.m_loop.m_set || o.m_spawnRate.m_set || o.m_lifetime.m_set || o.m_flipbookFps.m_set || o.m_size.m_set ||
-                     o.m_force.m_set || o.m_color.m_set);
+                     o.m_force.m_set || o.m_color.m_set || o.m_colorOverLife.m_set);
         }
 
         template<typename T>
@@ -135,7 +191,7 @@ namespace OpenParticle
             return (Dropped(before.m_loop, after.m_loop) || Dropped(before.m_spawnRate, after.m_spawnRate) ||
                     Dropped(before.m_lifetime, after.m_lifetime) || Dropped(before.m_flipbookFps, after.m_flipbookFps) ||
                     Dropped(before.m_size, after.m_size) || Dropped(before.m_force, after.m_force) ||
-                    Dropped(before.m_color, after.m_color));
+                    Dropped(before.m_color, after.m_color) || Dropped(before.m_colorOverLife, after.m_colorOverLife));
         }
     } // namespace
 
@@ -155,15 +211,15 @@ namespace OpenParticle
         return true;
     }
 
-    void ParticleOverrides::Apply(Core::ParticleSystem& system) const
+    void ParticleOverrides::Apply(Core::ParticleSystem& system, OverrideCurves& curves) const
     {
         const auto emitters = system.GetAllEmitters();
         for (const auto& [emitterId, emitter] : emitters)
         {
-            ApplyToEmitter(*emitter, m_all);
+            ApplyToEmitter(system, emitterId, curves, *emitter, m_all);
             if (auto found = m_emitters.find(emitterId); found != m_emitters.end())
             {
-                ApplyToEmitter(*emitter, found->second);
+                ApplyToEmitter(system, emitterId, curves, *emitter, found->second);
             }
         }
     }
@@ -185,8 +241,21 @@ namespace OpenParticle
         return false;
     }
 
+    void ParticleColorKey::Reflect(AZ::ReflectContext* context)
+    {
+        if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
+        {
+            serializeContext->Class<ParticleColorKey>()
+                ->Version(0)
+                ->Field("Time", &ParticleColorKey::m_time)
+                ->Field("Color", &ParticleColorKey::m_color);
+        }
+    }
+
     void EmitterOverrideSettings::Reflect(AZ::ReflectContext* context)
     {
+        ParticleColorKey::Reflect(context);
+
         if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
             serializeContext->Enum<LoopOverride>()
@@ -207,6 +276,8 @@ namespace OpenParticle
                 ->Field("Size", &EmitterOverrideSettings::m_size)
                 ->Field("OverrideColor", &EmitterOverrideSettings::m_overrideColor)
                 ->Field("Color", &EmitterOverrideSettings::m_color)
+                ->Field("OverrideColorOverLife", &EmitterOverrideSettings::m_overrideColorOverLife)
+                ->Field("ColorOverLife", &EmitterOverrideSettings::m_colorOverLife)
                 ->Field("OverrideForce", &EmitterOverrideSettings::m_overrideForce)
                 ->Field("Force", &EmitterOverrideSettings::m_force)
                 ->Field("OverrideFlipbookFps", &EmitterOverrideSettings::m_overrideFlipbookFps)
@@ -235,6 +306,17 @@ namespace OpenParticle
         if (m_overrideColor)
         {
             overrides.m_color.Set(m_color);
+        }
+        if (m_overrideColorOverLife && !m_colorOverLife.empty())
+        {
+            AZStd::vector<ParticleColorKey> keys = m_colorOverLife;
+            for (auto& key : keys)
+            {
+                key.m_time = AZ::GetClamp(key.m_time, 0.0f, 1.0f);
+            }
+            AZStd::stable_sort(
+                keys.begin(), keys.end(), [](const ParticleColorKey& left, const ParticleColorKey& right) { return left.m_time < right.m_time; });
+            overrides.m_colorOverLife.Set(keys);
         }
         if (m_overrideForce)
         {
@@ -274,6 +356,15 @@ namespace OpenParticle
             emitter.AddTo(overrides.m_emitters[emitter.m_emitterIndex]);
         }
         return overrides;
+    }
+
+    AZStd::string EmitterOverrideSettings::GetColorKeyLabel(int index) const
+    {
+        if (index >= 0 && index < static_cast<int>(m_colorOverLife.size()))
+        {
+            return AZStd::string::format("Key %d (%.2f)", index + 1, m_colorOverLife[index].m_time);
+        }
+        return AZStd::string::format("Key %d", index + 1);
     }
 
     AZStd::string ParticleOverrideSettings::GetEmitterLabel(int index) const

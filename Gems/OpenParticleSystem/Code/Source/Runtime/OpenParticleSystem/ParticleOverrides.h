@@ -11,6 +11,7 @@
 #include <AzCore/Math/Color.h>
 #include <AzCore/Math/Vector3.h>
 #include <AzCore/RTTI/TypeInfo.h>
+#include <AzCore/std/containers/array.h>
 #include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/containers/vector.h>
 #include <AzCore/std/string/string.h>
@@ -22,6 +23,7 @@ namespace AZ
 
 namespace SimuCore::ParticleCore
 {
+    class ParticleCurve;
     class ParticleSystem;
 }
 
@@ -40,6 +42,20 @@ namespace OpenParticle
         bool m_set = false;
     };
 
+    //! One stop of a colour-over-lifetime gradient; time 0 is a particle's birth and 1 its death.
+    struct ParticleColorKey
+    {
+        AZ_TYPE_INFO(OpenParticle::ParticleColorKey, "{3F1B7C52-8E2D-4A61-9C0B-5D7E2A94F318}");
+        static void Reflect(AZ::ReflectContext* context);
+
+        float m_time = 0.0f;
+        AZ::Color m_color = AZ::Color::CreateOne();
+    };
+
+    //! Curves a colour-over-lifetime override added to one simulation, per emitter and channel. The simulation owns them,
+    //! and every later apply rewrites their keys, so they are made once.
+    using OverrideCurves = AZStd::unordered_map<AZ::u32, AZStd::array<SimuCore::ParticleCore::ParticleCurve*, 4>>;
+
     struct EmitterOverrides
     {
         OverrideValue<bool> m_loop;
@@ -49,6 +65,8 @@ namespace OpenParticle
         OverrideValue<AZ::Vector3> m_size;
         OverrideValue<AZ::Vector3> m_force;
         OverrideValue<AZ::Color> m_color;
+        //! Keys sorted by time.
+        OverrideValue<AZStd::vector<ParticleColorKey>> m_colorOverLife;
     };
 
     //! Script-set values that are written into a particle instance's own effector data, so the per-particle update path is untouched.
@@ -77,7 +95,8 @@ namespace OpenParticle
         bool Drops(const ParticleOverrides& previous) const;
 
         //! Writes the emitter overrides into the simulation; the playback speed is read by OpenParticle::ParticleSystem.
-        void Apply(SimuCore::ParticleCore::ParticleSystem& system) const;
+        //! curves must belong to this simulation and start empty for a new one.
+        void Apply(SimuCore::ParticleCore::ParticleSystem& system, OverrideCurves& curves) const;
 
         EmitterOverrides m_all;
         AZStd::unordered_map<AZ::u32, EmitterOverrides> m_emitters;
@@ -100,6 +119,8 @@ namespace OpenParticle
 
         void AddTo(EmitterOverrides& overrides) const;
 
+        AZStd::string GetColorKeyLabel(int index) const;
+
         //! The emitter's name in the .particle file and its position there, which is its index at runtime. The editor
         //! re-matches entries by name when the asset changes.
         AZStd::string m_emitterName;
@@ -114,6 +135,8 @@ namespace OpenParticle
         AZ::Vector3 m_size = AZ::Vector3::CreateOne();
         bool m_overrideColor = false;
         AZ::Color m_color = AZ::Color::CreateOne();
+        bool m_overrideColorOverLife = false;
+        AZStd::vector<ParticleColorKey> m_colorOverLife = { { 0.0f, AZ::Color::CreateOne() }, { 1.0f, AZ::Color(1.0f, 1.0f, 1.0f, 0.0f) } };
         bool m_overrideForce = false;
         AZ::Vector3 m_force = AZ::Vector3(0.0f, 0.0f, -9.8f);
         bool m_overrideFlipbookFps = false;
