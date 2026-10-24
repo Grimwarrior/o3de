@@ -117,6 +117,7 @@ namespace OpenParticle
         AZStd::unordered_map <AZ::u32,
             AZStd::vector<AZ::Render::SimplePointLightFeatureProcessorInterface::LightHandle>> lightHandles;
         AZStd::vector<AZ::RHI::ConstPtr<AZ::RHI::DrawPacket>> m_drawPacket;
+        AZ::u32 m_drawOrder = 0; // position of the emitter being drawn in the sorted emitter list
 
         float m_timeScale = 1.0f;
         bool m_changedDiffuseMap;
