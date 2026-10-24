@@ -993,6 +993,18 @@ namespace OpenParticle
         }
     }
 
+    template<typename AssetType>
+    void ParticleSystem::QueueLoadAndWait(AZ::Data::Asset<AssetType>& asset)
+    {
+        // A Particle Editor document builds its archive in memory, so unlike a built asset nothing has preloaded its materials and models yet
+        if (!asset.IsLoading())
+        {
+            asset.QueueLoad();
+        }
+        // Connecting to an asset that is already ready sends OnAssetReady straight away
+        AZ::Data::AssetBus::MultiHandler::BusConnect(asset.GetId());
+    }
+
     void ParticleSystem::Rebuild()
     {
         auto emitters = m_particleSystem->GetAllEmitters();
@@ -1045,33 +1057,30 @@ namespace OpenParticle
             if (archive.m_emitterInfos[emitter.first].m_render.first == azrtti_typeid<SimuCore::ParticleCore::MeshConfig>())
             {
                 auto& modelAsset = archive.m_emitterInfos[emitter.first].m_model;
-                if (modelAsset)
+                if (modelAsset.IsReady())
                 {
-                    if (modelAsset->IsReady())
-                    {
-                        efd.m_model.SetupModel(archive.m_emitterInfos[emitter.first].m_model, 0);
-                        AZ::Aabb aabb = modelAsset->GetAabb();
-                        emitter.second->SetAabbExtends(aabb.GetMax(), aabb.GetMin());
-                    }
-                    else
-                    {
-                        AZ::Data::AssetBus::MultiHandler::BusConnect(modelAsset.GetId());
-                    }
+                    efd.m_model.SetupModel(archive.m_emitterInfos[emitter.first].m_model, 0);
+                    AZ::Aabb aabb = modelAsset->GetAabb();
+                    emitter.second->SetAabbExtends(aabb.GetMax(), aabb.GetMin());
+                }
+                else if (modelAsset.GetId().IsValid())
+                {
+                    QueueLoadAndWait(modelAsset);
                 }
             }
 
             HandleSkeletonModel(*emitter.second);
             auto& materialAsset = archive.m_emitterInfos[emitter.first].m_material;
             const auto& materialOverrides = archive.m_emitterInfos[emitter.first].m_materialOverrides;
-            if (materialAsset && materialAsset->IsReady())
+            if (materialAsset.IsReady())
             {
                 efd.Setup(materialAsset, materialOverrides);
             }
-            else if (materialAsset)
+            else if (materialAsset.GetId().IsValid())
             {
                 // Remember the overrides now so they are applied as soon as OnAssetReady runs Setup.
                 efd.m_materialOverrides = materialOverrides;
-                AZ::Data::AssetBus::MultiHandler::BusConnect(materialAsset.GetId());
+                QueueLoadAndWait(materialAsset);
             }
 
             AZ::RHI::ShaderInputNameIndex objectIdIndex = "m_objectId";

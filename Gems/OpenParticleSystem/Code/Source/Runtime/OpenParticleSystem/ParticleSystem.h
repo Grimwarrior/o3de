@@ -103,6 +103,9 @@ namespace OpenParticle
         void ClearLightEffects(AZ::u32 emitterId);
 
         void Rebuild();
+        // Starts loading an emitter's material or model if nothing has yet, and gets OnAssetReady once it is ready
+        template<typename AssetType>
+        void QueueLoadAndWait(AZ::Data::Asset<AssetType>& asset);
 
         ParticleFeatureProcessor* m_particleFp = nullptr;
         AZ::RPI::Scene* m_scene = nullptr;
