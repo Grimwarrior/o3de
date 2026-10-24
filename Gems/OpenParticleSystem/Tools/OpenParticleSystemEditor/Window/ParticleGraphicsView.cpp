@@ -838,20 +838,43 @@ namespace OpenParticleSystemEditor
         AZ::s32 itemX = 0;
         AZ::s32 itemY = 0;
         QFile particleLayoutSettings(m_particleAssetPath);
-        if (particleLayoutSettings.exists() && !particleLayoutSettings.open(QIODevice::ReadOnly))
+        // No layout yet (a particle written outside the editor) would otherwise read as zeros and stack every card at the origin
+        if (!particleLayoutSettings.exists() || !particleLayoutSettings.open(QIODevice::ReadOnly))
         {
-            AZ_Printf("Emitter", "Emitter position read failed:%s", particleLayoutSettings.errorString().toStdString().c_str());
+            if (particleLayoutSettings.exists())
+            {
+                AZ_Printf("Emitter", "Emitter position read failed:%s", particleLayoutSettings.errorString().toStdString().c_str());
+            }
             PositionAllItems();
             return;
         }
         QDataStream readFromFile(&particleLayoutSettings);
+        QList<QGraphicsItem*> unplacedItems;
+        qreal rightEdge = 0.0;
+        qreal rowY = 0.0;
+        bool anyPlaced = false;
         for (const auto& item : m_afterSortList)
         {
             readFromFile >> itemX;
             readFromFile >> itemY;
+            if (readFromFile.status() != QDataStream::Ok)
+            {
+                unplacedItems.append(item);
+                continue;
+            }
             item->setPos(itemX, itemY);
+            rightEdge = anyPlaced ? AZStd::max(rightEdge, itemX + item->boundingRect().width()) : itemX + item->boundingRect().width();
+            rowY = anyPlaced ? rowY : itemY;
+            anyPlaced = true;
         }
         particleLayoutSettings.close();
+
+        // Emitters added since the layout was saved go in a row to the right of the saved cards
+        for (const auto& item : unplacedItems)
+        {
+            item->setPos(rightEdge, rowY);
+            rightEdge += item->boundingRect().width();
+        }
         ResetCenter();
     }
 
