@@ -8,6 +8,8 @@
 
 #include "ParticleOverrides.h"
 
+#include <AzCore/Serialization/SerializeContext.h>
+
 #include <particle/core/ParticleEmitter.h>
 #include <particle/core/ParticleSystem.h>
 #include <particle/emit/ParticleEmit.h>
@@ -121,6 +123,20 @@ namespace OpenParticle
             return (o.m_loop.m_set || o.m_spawnRate.m_set || o.m_lifetime.m_set || o.m_flipbookFps.m_set || o.m_size.m_set ||
                      o.m_force.m_set || o.m_color.m_set);
         }
+
+        template<typename T>
+        bool Dropped(const OverrideValue<T>& before, const OverrideValue<T>& after)
+        {
+            return before.m_set && !after.m_set;
+        }
+
+        bool DropsAny(const EmitterOverrides& before, const EmitterOverrides& after)
+        {
+            return (Dropped(before.m_loop, after.m_loop) || Dropped(before.m_spawnRate, after.m_spawnRate) ||
+                    Dropped(before.m_lifetime, after.m_lifetime) || Dropped(before.m_flipbookFps, after.m_flipbookFps) ||
+                    Dropped(before.m_size, after.m_size) || Dropped(before.m_force, after.m_force) ||
+                    Dropped(before.m_color, after.m_color));
+        }
     } // namespace
 
     bool ParticleOverrides::IsEmpty() const
@@ -150,5 +166,122 @@ namespace OpenParticle
                 ApplyToEmitter(*emitter, found->second);
             }
         }
+    }
+
+    bool ParticleOverrides::Drops(const ParticleOverrides& previous) const
+    {
+        if (DropsAny(previous.m_all, m_all))
+        {
+            return true;
+        }
+        for (const auto& [emitterIndex, before] : previous.m_emitters)
+        {
+            const auto found = m_emitters.find(emitterIndex);
+            if (DropsAny(before, found != m_emitters.end() ? found->second : EmitterOverrides{}))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void EmitterOverrideSettings::Reflect(AZ::ReflectContext* context)
+    {
+        if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
+        {
+            serializeContext->Enum<LoopOverride>()
+                ->Value("Asset", LoopOverride::Asset)
+                ->Value("On", LoopOverride::On)
+                ->Value("Off", LoopOverride::Off);
+
+            serializeContext->Class<EmitterOverrideSettings>()
+                ->Version(0)
+                ->Field("EmitterName", &EmitterOverrideSettings::m_emitterName)
+                ->Field("EmitterIndex", &EmitterOverrideSettings::m_emitterIndex)
+                ->Field("Loop", &EmitterOverrideSettings::m_loop)
+                ->Field("OverrideSpawnRate", &EmitterOverrideSettings::m_overrideSpawnRate)
+                ->Field("SpawnRate", &EmitterOverrideSettings::m_spawnRate)
+                ->Field("OverrideLifetime", &EmitterOverrideSettings::m_overrideLifetime)
+                ->Field("Lifetime", &EmitterOverrideSettings::m_lifetime)
+                ->Field("OverrideSize", &EmitterOverrideSettings::m_overrideSize)
+                ->Field("Size", &EmitterOverrideSettings::m_size)
+                ->Field("OverrideColor", &EmitterOverrideSettings::m_overrideColor)
+                ->Field("Color", &EmitterOverrideSettings::m_color)
+                ->Field("OverrideForce", &EmitterOverrideSettings::m_overrideForce)
+                ->Field("Force", &EmitterOverrideSettings::m_force)
+                ->Field("OverrideFlipbookFps", &EmitterOverrideSettings::m_overrideFlipbookFps)
+                ->Field("FlipbookFps", &EmitterOverrideSettings::m_flipbookFps);
+        }
+    }
+
+    void EmitterOverrideSettings::AddTo(EmitterOverrides& overrides) const
+    {
+        if (m_loop != LoopOverride::Asset)
+        {
+            overrides.m_loop.Set(m_loop == LoopOverride::On);
+        }
+        if (m_overrideSpawnRate)
+        {
+            overrides.m_spawnRate.Set(m_spawnRate);
+        }
+        if (m_overrideLifetime)
+        {
+            overrides.m_lifetime.Set(m_lifetime);
+        }
+        if (m_overrideSize)
+        {
+            overrides.m_size.Set(m_size);
+        }
+        if (m_overrideColor)
+        {
+            overrides.m_color.Set(m_color);
+        }
+        if (m_overrideForce)
+        {
+            overrides.m_force.Set(m_force);
+        }
+        if (m_overrideFlipbookFps)
+        {
+            overrides.m_flipbookFps.Set(m_flipbookFps);
+        }
+    }
+
+    void ParticleOverrideSettings::Reflect(AZ::ReflectContext* context)
+    {
+        EmitterOverrideSettings::Reflect(context);
+
+        if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
+        {
+            serializeContext->Class<ParticleOverrideSettings>()
+                ->Version(0)
+                ->Field("OverridePlaybackSpeed", &ParticleOverrideSettings::m_overridePlaybackSpeed)
+                ->Field("PlaybackSpeed", &ParticleOverrideSettings::m_playbackSpeed)
+                ->Field("AllEmitters", &ParticleOverrideSettings::m_allEmitters)
+                ->Field("Emitters", &ParticleOverrideSettings::m_emitters);
+        }
+    }
+
+    ParticleOverrides ParticleOverrideSettings::ToOverrides() const
+    {
+        ParticleOverrides overrides;
+        if (m_overridePlaybackSpeed)
+        {
+            overrides.m_playbackSpeed.Set(m_playbackSpeed);
+        }
+        m_allEmitters.AddTo(overrides.m_all);
+        for (const auto& emitter : m_emitters)
+        {
+            emitter.AddTo(overrides.m_emitters[emitter.m_emitterIndex]);
+        }
+        return overrides;
+    }
+
+    AZStd::string ParticleOverrideSettings::GetEmitterLabel(int index) const
+    {
+        if (index >= 0 && index < static_cast<int>(m_emitters.size()) && !m_emitters[index].m_emitterName.empty())
+        {
+            return m_emitters[index].m_emitterName;
+        }
+        return AZStd::string::format("Emitter %d", index);
     }
 }

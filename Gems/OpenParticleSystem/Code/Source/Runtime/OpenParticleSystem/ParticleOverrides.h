@@ -10,7 +10,15 @@
 
 #include <AzCore/Math/Color.h>
 #include <AzCore/Math/Vector3.h>
+#include <AzCore/RTTI/TypeInfo.h>
 #include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/std/containers/vector.h>
+#include <AzCore/std/string/string.h>
+
+namespace AZ
+{
+    class ReflectContext;
+}
 
 namespace SimuCore::ParticleCore
 {
@@ -64,6 +72,10 @@ namespace OpenParticle
 
         bool IsEmpty() const;
 
+        //! True when a value set in previous is no longer set here. Effector data is written in place, so the asset value
+        //! only comes back by rebuilding the simulation.
+        bool Drops(const ParticleOverrides& previous) const;
+
         //! Writes the emitter overrides into the simulation; the playback speed is read by OpenParticle::ParticleSystem.
         void Apply(SimuCore::ParticleCore::ParticleSystem& system) const;
 
@@ -71,4 +83,62 @@ namespace OpenParticle
         AZStd::unordered_map<AZ::u32, EmitterOverrides> m_emitters;
         OverrideValue<float> m_playbackSpeed;
     };
+
+    enum class LoopOverride : AZ::u8
+    {
+        Asset,
+        On,
+        Off
+    };
+
+    //! Values authored in the Particle component card for one emitter, or for every emitter. A value applies only while its
+    //! toggle is on.
+    struct EmitterOverrideSettings
+    {
+        AZ_TYPE_INFO(OpenParticle::EmitterOverrideSettings, "{6DA4933E-E4C8-49A9-B2CB-6FB2B9F3D758}");
+        static void Reflect(AZ::ReflectContext* context);
+
+        void AddTo(EmitterOverrides& overrides) const;
+
+        //! The emitter's name in the .particle file and its position there, which is its index at runtime. The editor
+        //! re-matches entries by name when the asset changes.
+        AZStd::string m_emitterName;
+        AZ::u32 m_emitterIndex = 0;
+
+        LoopOverride m_loop = LoopOverride::Asset;
+        bool m_overrideSpawnRate = false;
+        float m_spawnRate = 10.0f;
+        bool m_overrideLifetime = false;
+        float m_lifetime = 1.0f;
+        bool m_overrideSize = false;
+        AZ::Vector3 m_size = AZ::Vector3::CreateOne();
+        bool m_overrideColor = false;
+        AZ::Color m_color = AZ::Color::CreateOne();
+        bool m_overrideForce = false;
+        AZ::Vector3 m_force = AZ::Vector3(0.0f, 0.0f, -9.8f);
+        bool m_overrideFlipbookFps = false;
+        float m_flipbookFps = 30.0f;
+    };
+
+    //! The overrides a Particle component starts with; scripts can still change them through ParticleRequestBus.
+    struct ParticleOverrideSettings
+    {
+        AZ_TYPE_INFO(OpenParticle::ParticleOverrideSettings, "{05240E48-5718-4AB4-84B2-793BD600209D}");
+        static void Reflect(AZ::ReflectContext* context);
+
+        //! A per-emitter value wins over the same value set for every emitter.
+        ParticleOverrides ToOverrides() const;
+
+        AZStd::string GetEmitterLabel(int index) const;
+
+        bool m_overridePlaybackSpeed = false;
+        float m_playbackSpeed = 1.0f;
+        EmitterOverrideSettings m_allEmitters;
+        AZStd::vector<EmitterOverrideSettings> m_emitters;
+    };
+}
+
+namespace AZ
+{
+    AZ_TYPE_INFO_SPECIALIZE(OpenParticle::LoopOverride, "{9888BBD9-10B1-42EF-96B7-C0CE3942686B}");
 }

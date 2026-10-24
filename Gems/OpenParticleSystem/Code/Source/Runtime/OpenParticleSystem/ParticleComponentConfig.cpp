@@ -15,6 +15,8 @@ namespace OpenParticle
 {
     void ParticleComponentConfig::Reflect(AZ::ReflectContext* context)
     {
+        ParticleOverrideSettings::Reflect(context);
+
         if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
             serializeContext->Class<ParticleComponentConfig, AZ::ComponentConfig>()
@@ -22,7 +24,8 @@ namespace OpenParticle
                 ->Field("Asset", &ParticleComponentConfig::m_particleAsset)
                 ->Field("Enable", &ParticleComponentConfig::m_enable)
                 ->Field("FollowActiveCamera", &ParticleComponentConfig::m_followActiveCamera)
-                ->Field("AutoPlay", &ParticleComponentConfig::m_autoPlay);
+                ->Field("AutoPlay", &ParticleComponentConfig::m_autoPlay)
+                ->Field("Overrides", &ParticleComponentConfig::m_overrides);
         }
     }
 } // namespace OpenParticle

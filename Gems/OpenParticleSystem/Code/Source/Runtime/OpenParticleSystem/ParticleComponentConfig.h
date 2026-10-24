@@ -10,6 +10,7 @@
 
 #include <AzCore/Component/ComponentBus.h>
 #include <OpenParticleSystem/Asset/ParticleAsset.h>
+#include <OpenParticleSystem/ParticleOverrides.h>
 
 namespace OpenParticle
 {
@@ -27,6 +28,7 @@ namespace OpenParticle
         bool m_enable = true;
         bool m_followActiveCamera = false;
         bool m_autoPlay = true;
+        ParticleOverrideSettings m_overrides;
         bool m_inParticleEditor = false;
     };
 } // namespace OpenParticle

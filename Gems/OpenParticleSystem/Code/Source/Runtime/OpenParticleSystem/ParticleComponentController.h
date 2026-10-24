@@ -68,6 +68,12 @@ namespace OpenParticle
         template<typename Edit>
         void EditOverrides(Edit&& edit);
 
+        //! Swaps in the overrides authored in the configuration; scripts' overrides are dropped.
+        void ApplyAuthoredOverrides();
+
+        //! Rebuilds the running simulation with the same play status, which brings back asset values an override replaced.
+        void Restart();
+
         void SetParticleAsset(AZ::Data::Asset<ParticleAsset> particleAsset, bool inParticleEditor);
         void SetParticleAssetByPath(AZStd::string path);
         AZStd::string GetParticleAssetPath() const;

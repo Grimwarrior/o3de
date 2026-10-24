@@ -10,6 +10,7 @@
 
 #include <OpenParticleSystem/ParticleComponent.h>
 #include <AzToolsFramework/ToolsComponents/EditorComponentAdapter.h>
+#include <AzFramework/Asset/AssetCatalogBus.h>
 #include <AzToolsFramework/ToolsComponents/EditorVisibilityBus.h>
 #include <OpenParticleSystem/ParticleComponentConfig.h>
 
@@ -22,6 +23,7 @@ namespace OpenParticle
               EditorComponentAdapter<ParticleComponentController, ParticleComponent, ParticleComponentConfig>
         , private AzToolsFramework::EditorVisibilityNotificationBus::Handler
         , private EditorParticleRequestBus::Handler
+        , private AzFramework::AssetCatalogEventBus::Handler
     {
     public:
         using BaseClass =
@@ -53,5 +55,15 @@ namespace OpenParticle
     private:
         // AzToolsFramework::EditorEntityVisibilityNotificationBus::Handler overrides
         void OnEntityVisibilityChanged(bool visibility) override;
+
+        // AzFramework::AssetCatalogEventBus::Handler overrides
+        void OnCatalogAssetChanged(const AZ::Data::AssetId& assetId) override;
+
+        //! Gives the per-emitter overrides one entry per emitter in the .particle file, keeping authored values by emitter name.
+        //! Returns true when the list changed.
+        bool SyncEmitterOverrides();
+
+        //! The configuration the controller was last activated with, so an edit that only touches overrides can skip the restart.
+        ParticleComponentConfig m_activatedConfig;
     };
 } // namespace OpenParticle

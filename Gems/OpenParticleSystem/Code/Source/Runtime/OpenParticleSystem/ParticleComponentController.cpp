@@ -113,6 +113,7 @@ namespace OpenParticle
 
         AzFramework::AssetCatalogEventBus::Handler::BusConnect();
         m_featureProcessor = AZ::RPI::Scene::GetFeatureProcessorForEntity<ParticleFeatureProcessorInterface>(m_entityId);
+        m_overrides = m_configuration.m_overrides.ToOverrides();
         Register();
     }
 
@@ -240,7 +241,27 @@ namespace OpenParticle
 
     void ParticleComponentController::ClearOverrides()
     {
-        m_overrides = ParticleOverrides{};
+        m_overrides = m_configuration.m_overrides.ToOverrides();
+        Restart();
+    }
+
+    void ParticleComponentController::ApplyAuthoredOverrides()
+    {
+        ParticleOverrides authored = m_configuration.m_overrides.ToOverrides();
+        const bool dropsValues = authored.Drops(m_overrides);
+        m_overrides = AZStd::move(authored);
+        if (dropsValues)
+        {
+            Restart();
+        }
+        else if (m_particleHandle.IsValid())
+        {
+            m_particleHandle->EditOverrides([this](ParticleOverrides& o) { o = m_overrides; });
+        }
+    }
+
+    void ParticleComponentController::Restart()
+    {
         if (m_particleHandle.IsValid())
         {
             // Effector data was written in place, so the asset values only come back by rebuilding the simulation.

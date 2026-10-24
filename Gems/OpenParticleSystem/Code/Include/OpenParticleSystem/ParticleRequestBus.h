@@ -61,7 +61,7 @@ namespace OpenParticle
         //! Simulation speed for the whole system, 1 is normal and 0.5 is slow motion.
         virtual void SetPlaybackSpeed(float speed) = 0;
 
-        //! Drops every runtime override and restores the asset values by restarting the system.
+        //! Drops every script override, going back to the overrides set on the component (or the asset values), by restarting the system.
         virtual void ClearOverrides() = 0;
     };
 
