@@ -77,6 +77,7 @@ namespace EMotionFX
             AZStd::unique_ptr<TwoMotionNodeAnimGraph> motionNodeAnimGraph = AnimGraphFactory::Create<TwoMotionNodeAnimGraph>();
             m_animGraph = motionNodeAnimGraph.get();
             motionNodeAnimGraph.release();
+            m_animGraph->InitAfterLoading();
             animGraphAsset.GetAs<Integration::AnimGraphAsset>()->SetData(m_animGraph);
             EXPECT_EQ(animGraphAsset.IsReady(), true) << "Anim graph asset is not ready yet.";
             animGraphComponent->OnAssetReady(animGraphAsset);
@@ -99,6 +100,10 @@ namespace EMotionFX
 
             // Actor component
             actorComponent->SetActorAsset(actorAsset);
+
+            // Run one tick so the deferred actor creation from OnAssetReady replaces the actor instance now,
+            // rather than after a test has fetched it.
+            AZ::TickBus::Broadcast(&AZ::TickEvents::OnTick, 0.0f, AZ::ScriptTimePoint());
         }
 
         void AddMotionEntry(Motion* motion, const AZStd::string& motionId)
