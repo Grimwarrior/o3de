@@ -562,6 +562,7 @@ namespace OpenParticle
         AZ::u32 framePerSecond = 30;
         AZ::u32 frameNum = 1;
         AZ::u32 randomStartFrames = 0;
+        bool interpolateFrames = false;
         bool spawnOnly = false;
         bool IndexByEventOrder = false;
     };

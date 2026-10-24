@@ -50,10 +50,12 @@ namespace SimuCore::ParticleCore {
                 particleVertex.up = AZ::Vector4(world.cameraUp, world.worldAxes ? 1.f : 0.f);
 
                 AZ::Vector3 vel = particle.velocity;
+                // velocity.w carries the flipbook blend: next frame index + share of it (0 when not interpolating)
+                const float nextFrame = particle.subUVBlend > 0.f ? static_cast<float>(particle.subUVNextFrame) + particle.subUVBlend : 0.f;
                 if (vel.IsClose(AZ::Vector3::CreateZero())) {
-                    particleVertex.velocity = AZ::Vector4(vel, 0.f);
+                    particleVertex.velocity = AZ::Vector4(vel, nextFrame);
                 } else {
-                    particleVertex.velocity = AZ::Vector4(vel.GetNormalized(), 0.f);
+                    particleVertex.velocity = AZ::Vector4(vel.GetNormalized(), nextFrame);
                 }
 
                 AZ::u32 width = std::max(static_cast<AZ::u32>(std::floor(config.subImageSize.GetX())), 1u);

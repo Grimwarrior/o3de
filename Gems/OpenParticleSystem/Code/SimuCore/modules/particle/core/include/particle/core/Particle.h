@@ -33,6 +33,8 @@ namespace SimuCore::ParticleCore {
         AZ::u64 id = UINT64_MAX;              // particle unique id
         AZ::u64 ribbonId = UINT64_MAX;        // in which ribbon
         AZ::u32 subUVFrame = 0u;              // subuv frame
+        AZ::u32 subUVNextFrame = 0u;          // frame blended in when interpolating
+        float subUVBlend = 0.f;               // 0..1 share of the next frame, 0 when not interpolating
         AZ::u32 locationEventCount = 0u;      // total location events generated
         AZ::u32 parentEventIdx = 0u;          // when spawn triggered by event, record parent event index  when spawn triggered by event
         float lifeTime = 0.f;                  // life time

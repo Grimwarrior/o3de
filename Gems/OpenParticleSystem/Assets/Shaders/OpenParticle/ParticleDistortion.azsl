@@ -99,7 +99,7 @@ float3 GetPos(VertexInput input, float4x4 objectToWorld, float3 cameraDir, float
 }
 
 float3 GetVelocityFacingPos(VertexInput input, float4x4 objectToWorld, float3 cameraDir) {
-    if (length(input.velocity) == 0.f) {
+    if (length(input.velocity.xyz) == 0.f) {
         return GetPos(input, objectToWorld, cameraDir, input.up.xyz, input.scale.xyz);
     }
     float3x3 rotation = GetRotationFromLookAtMatrix(cameraDir, input.velocity.xyz);

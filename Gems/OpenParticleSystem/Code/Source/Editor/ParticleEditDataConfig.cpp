@@ -407,6 +407,7 @@ namespace OpenParticle
                 ->Field("framePerSecond", &OpenParticle::UpdateSubUv::framePerSecond)
                 ->Field("frameNum", &OpenParticle::UpdateSubUv::frameNum)
                 ->Field("randomStartFrames", &OpenParticle::UpdateSubUv::randomStartFrames)
+                ->Field("interpolateFrames", &OpenParticle::UpdateSubUv::interpolateFrames)
                 ->Field("spawnOnly", &OpenParticle::UpdateSubUv::spawnOnly)
                 ->Field("IndexByEventOrder", &OpenParticle::UpdateSubUv::IndexByEventOrder);
 
@@ -1266,6 +1267,11 @@ namespace OpenParticle
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Each particle starts on a random frame from 0 to this value, then plays on at Frame Per Second. 0 starts every particle on frame 0."))
                         ->Attribute(AZ::Edit::Attributes::Min, 0)
                         ->Attribute(AZ::Edit::Attributes::Max, 1000000)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateSubUv::IsAnimated)
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::CheckBox, &OpenParticle::UpdateSubUv::interpolateFrames,
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Interpolate Frames"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Blend each frame into the next one while it plays, so a low Frame Per Second does not step or strobe."))
                         ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateSubUv::IsAnimated)
                     ->DataElement(
                         AZ::Edit::UIHandlers::Default, &OpenParticle::UpdateSubUv::spawnOnly,

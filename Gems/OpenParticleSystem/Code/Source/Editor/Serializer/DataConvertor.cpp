@@ -408,6 +408,7 @@ namespace OpenParticle
         runtimeData.frameNum = editData.frameNum;
         runtimeData.framePerSecond = editData.framePerSecond;
         runtimeData.randomStartFrames = editData.randomStartFrames;
+        runtimeData.interpolateFrames = editData.interpolateFrames;
         runtimeData.spawnOnly = editData.spawnOnly;
         runtimeData.IndexByEventOrder = editData.IndexByEventOrder;
     }
