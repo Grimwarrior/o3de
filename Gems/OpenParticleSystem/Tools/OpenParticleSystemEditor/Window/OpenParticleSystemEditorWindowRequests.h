@@ -23,7 +23,13 @@ namespace OpenParticleSystemEditor
         virtual void ActivateWindow() = 0;
         virtual void OpenDocument(const AZStd::string& path) = 0;
         virtual void CreateParticleFile(const AZStd::string& path) = 0;
+        //! Asks for a path and creates and opens a new particle there
+        virtual void NewDocument() = 0;
+        //! Lets the user pick a particle in the asset browser and opens it
+        virtual void OpenDocumentFromBrowser() = 0;
         virtual void SaveDocument() = 0;
+        virtual void SaveDocumentAs() = 0;
+        virtual void SaveAllDocuments() = 0;
     };
 
     using EditorWindowRequestsBus = AZ::EBus<EditorWindowRequests>;

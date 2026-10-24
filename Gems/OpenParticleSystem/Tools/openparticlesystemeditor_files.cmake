@@ -18,6 +18,7 @@ set(FILES
     OpenParticleSystemEditor/Window/OpenParticleSystemEditorWindow.cpp
     OpenParticleSystemEditor/Window/OpenParticleSystemEditorWindow.h
     OpenParticleSystemEditor/Window/OpenParticleSystemEditorWindowRequests.h
+    OpenParticleSystemEditor/Window/OpenParticleSystemEditorActionIdentifiers.h
     OpenParticleSystemEditor/Window/LevelOfDetailInspector.h
     OpenParticleSystemEditor/Window/LevelOfDetailInspector.cpp
     OpenParticleSystemEditor/Window/LevelOfDetailInspectorNotifyBus.h

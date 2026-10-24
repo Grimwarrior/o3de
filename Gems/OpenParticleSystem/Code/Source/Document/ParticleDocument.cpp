@@ -204,6 +204,18 @@ namespace OpenParticleSystemEditor
 
     bool ParticleDocument::Save()
     {
+        if (!SaveAs(m_absolutePath))
+        {
+            return false;
+        }
+
+        m_modified = false;
+        return true;
+    }
+
+    bool ParticleDocument::SaveAs(AZStd::string_view absolutePath)
+    {
+        const AZStd::string savePath(absolutePath);
         AZStd::string fileName;
         if (!AzFramework::StringFunc::Path::GetFileName(m_absolutePath.c_str(), fileName))
         {
@@ -217,16 +229,17 @@ namespace OpenParticleSystemEditor
             return false;
         }
 
+        // The graph view bus is addressed by the open file's name, so turned-off emitters are written whatever the target path
         EBUS_EVENT_ID(fileName, ParticleGraphicsViewRequestsBus, CheckAllParticleItemWidgetWithoutBusNotification);
-        if (!SaveToFile(m_absolutePath, m_sourceData))
+        const bool saved = SaveToFile(savePath, m_sourceData);
+        EBUS_EVENT_ID(fileName, ParticleGraphicsViewRequestsBus, RestoreAllParticleItemWidgetStatusAfterCheckAll);
+        if (!saved)
         {
-            AZ_Error("Particle Document", false, "Particle document could not be saved: '%s'.", m_absolutePath.c_str());
+            AZ_Error("Particle Document", false, "Particle document could not be saved: '%s'.", savePath.c_str());
             return false;
         }
 
-        EBUS_EVENT_ID(fileName, ParticleGraphicsViewRequestsBus, RestoreAllParticleItemWidgetStatusAfterCheckAll);
-        m_modified = false;
-        AZ_TracePrintf("Particle Document", "Particle document saved: '%s'.\n", m_absolutePath.c_str());
+        AZ_TracePrintf("Particle Document", "Particle document saved: '%s'.\n", savePath.c_str());
 
         return true;
     }

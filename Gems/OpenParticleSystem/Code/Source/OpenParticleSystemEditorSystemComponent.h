@@ -12,6 +12,7 @@
 #include <AzCore/Component/Component.h>
 #include <AzToolsFramework/Entity/EditorEntityContextBus.h>
 #include <AzToolsFramework/Viewport/ActionBus.h>
+#include <AzToolsFramework/ActionManager/ActionManagerRegistrationNotificationBus.h>
 #include <QAction>
 
 
@@ -22,6 +23,7 @@ namespace OpenParticleSystem
         : public OpenParticleSystemSystemComponent
         , private AzToolsFramework::EditorEvents::Bus::Handler
         , public AzToolsFramework::EditorMenuNotificationBus::Handler
+        , private AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler
     {
         using BaseSystemComponent = OpenParticleSystemSystemComponent;
     public:
@@ -47,5 +49,11 @@ namespace OpenParticleSystem
         // AztoolsFramework::EditorEvents::Bus::Handler...
         void NotifyRegisterViews() override;
         ////////////////////////////////////////////////////////////////////////
+
+        // AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler...
+        void OnActionContextRegistrationHook() override;
+        void OnMenuRegistrationHook() override;
+        void OnActionRegistrationHook() override;
+        void OnMenuBindingHook() override;
     };
 } // namespace OpenParticleSystem

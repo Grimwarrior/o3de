@@ -49,8 +49,11 @@ namespace OpenParticleSystemEditor
         void ActivateWindow() override;
         void OpenDocument(const AZStd::string& path) override;
         void CreateParticleFile(const AZStd::string& path) override;
+        void NewDocument() override;
+        void OpenDocumentFromBrowser() override;
         void SaveDocument() override;
-        void SaveAllDocuments();
+        void SaveDocumentAs() override;
+        void SaveAllDocuments() override;
 
         // EditorParticleOpenParticleRequestsBus
         void OpenParticleFile(const AZStd::string& sourcePath) override;

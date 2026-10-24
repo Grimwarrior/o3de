@@ -35,6 +35,8 @@ namespace OpenParticleSystemEditor
 
         bool Open(AZStd::string_view loadPath);
         bool Save();
+        // Writes the document to another file; the document itself keeps its path, so the original file stays as it was on disk
+        bool SaveAs(AZStd::string_view absolutePath);
         bool Close();
         bool UpdateAsset();
 

@@ -23,6 +23,10 @@
 #include <AtomToolsFramework/Window/AtomToolsMainWindowNotificationBus.h>
 #include <AzToolsFramework/AssetBrowser/AssetSelectionModel.h>
 #include <AzToolsFramework/AssetBrowser/AssetBrowserEntry.h>
+#include <AzToolsFramework/API/EditorAssetSystemAPI.h>
+#include <AzToolsFramework/ActionManager/Menu/MenuManagerInternalInterface.h>
+#include <AzToolsFramework/Editor/ActionManagerUtils.h>
+#include <OpenParticleSystemEditorActionIdentifiers.h>
 #include <Atom/RPI.Edit/Common/AssetUtils.h>
 
 
@@ -30,6 +34,9 @@
 #include <QStatusBar>
 #include <QLabel>
 #include <QFileDialog>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 
 #define MAX_EMITTER_WIDGET_NUM 10
 
@@ -64,10 +71,14 @@ namespace OpenParticleSystemEditor
         RegisterDistCtrlHandlers();
         SetGradientColorBusIDName();
         RegisterGradientColorPropertyHandler();
+
+        // Lets the Particle Editor's File hotkeys fire while it has focus, even where they match the Editor's own
+        AzToolsFramework::AssignWidgetToActionContextHelper(AZStd::string(ActionIdentifiers::ParticleEditorActionContext), this);
     }
 
     OpenParticleSystemEditorWindow::~OpenParticleSystemEditorWindow()
     {
+        AzToolsFramework::RemoveWidgetFromActionContextHelper(AZStd::string(ActionIdentifiers::ParticleEditorActionContext), this);
         EditorWindowRequestsBus::Handler::BusDisconnect();
         OpenParticle::EditorParticleOpenParticleRequestsBus::Handler::BusDisconnect();
         UnregisterDistCtrlHandlers();
@@ -80,78 +91,19 @@ namespace OpenParticleSystemEditor
         m_menuBar = new QMenuBar(this);
         setMenuBar(m_menuBar);
 
-        m_menuFile = m_menuBar->addMenu(QCoreApplication::translate("OpenParticleSystemEditorWindow", "&File"));
-
-        m_menuFile->addAction(
-            QCoreApplication::translate("OpenParticleSystemEditorWindow", "&New..."),
-            QKeySequence::New,
-            [this]()
-            {
-                AZ::IO::FixedMaxPathString projectPath = AZ::Utils::GetProjectPath();
-
-                QString fileName = QFileDialog::getSaveFileName(
-                    nullptr,
-                    "Create New Particle",
-                    projectPath.c_str(),
-                    "Particle (*.particle)"
-                );
-
-                if (fileName.isEmpty())
-                {
-                    return;
-                }
-
-                QFileInfo fileInfo(fileName);
-
-                AZStd::string fullFilepath;
-                AZ::StringFunc::Path::ConstructFull(fileInfo.path().toUtf8(),
-                                                    fileInfo.fileName().toUtf8(),
-                                                    ".particle",
-                                                    fullFilepath);
-
-                OpenParticle::EditorParticleSystemComponentRequestBus::Broadcast(&OpenParticle::EditorParticleSystemComponentRequestBus::Events::CreateNewParticle,
-                                                                    fullFilepath);
-
-                OpenDocument(fullFilepath);
-
-            });
-
-        m_menuFile->addAction(
-            QCoreApplication::translate("OpenParticleSystemEditorWindow", "&Open..."), QKeySequence::Open,
-            [this]()
-            {
-                AssetSelectionModel selection = AssetSelectionModel::AssetTypeSelection(azrtti_typeid<OpenParticle::ParticleAsset>());
-                AssetBrowserComponentRequestBus::Broadcast(&AssetBrowserComponentRequests::PickAssets, selection, parentWidget());
-                if (!selection.IsValid())
-                {
-                    AZ_TracePrintf("SetupMenu", "PickAssets failed\n");
-                    return;
-                }
-                const AZStd::string filePath = selection.GetResult()->GetParent()->GetFullPath();
-                if (!filePath.empty())
-                {
-                    OpenDocument(filePath);
-                    SetStatusMessage(tr("Particle opened: %1").arg(filePath.c_str()));
-                }
-            });
-
-        m_menuFile->addSeparator();
-
-        m_menuFile->addAction(
-        QCoreApplication::translate("OpenParticleSystemEditorWindow", "&Save All"), QKeySequence::Save,
-        [this]()
+        // The File menu and its actions are registered with the Action Manager (OpenParticleSystemEditorSystemComponent); the menu bar only shows them
+        if (auto menuManagerInternalInterface = AZ::Interface<AzToolsFramework::MenuManagerInternalInterface>::Get())
         {
-            SaveDocument();
-        });
-
-
-        m_menuFile->addAction(
-        QCoreApplication::translate("OpenParticleSystemEditorWindow", "&Save All"),
-        QKeySequence::UnknownKey,
-        [this]()
+            m_menuFile = menuManagerInternalInterface->GetMenu(AZStd::string(ActionIdentifiers::FileMenu));
+        }
+        if (m_menuFile)
         {
-            SaveAllDocuments();
-        });
+            m_menuBar->addMenu(m_menuFile);
+        }
+        else
+        {
+            AZ_Warning("OpenParticleSystemEditor", false, "Particle Editor File menu %.*s is not registered", AZ_STRING_ARG(ActionIdentifiers::FileMenu));
+        }
 
         m_menuView = m_menuBar->addMenu(QCoreApplication::translate("OpenParticleSystemEditorWindow", "&View"));
     }
@@ -477,6 +429,53 @@ namespace OpenParticleSystemEditor
         SetStatusMessage(QString("Particle created: %1").arg(path.c_str()));
     }
 
+    void OpenParticleSystemEditorWindow::NewDocument()
+    {
+        AZ::IO::FixedMaxPathString projectPath = AZ::Utils::GetProjectPath();
+
+        QString fileName = QFileDialog::getSaveFileName(
+            nullptr,
+            "Create New Particle",
+            projectPath.c_str(),
+            "Particle (*.particle)"
+        );
+
+        if (fileName.isEmpty())
+        {
+            return;
+        }
+
+        QFileInfo fileInfo(fileName);
+
+        AZStd::string fullFilepath;
+        AZ::StringFunc::Path::ConstructFull(fileInfo.path().toUtf8(),
+                                            fileInfo.fileName().toUtf8(),
+                                            ".particle",
+                                            fullFilepath);
+
+        OpenParticle::EditorParticleSystemComponentRequestBus::Broadcast(&OpenParticle::EditorParticleSystemComponentRequestBus::Events::CreateNewParticle,
+                                                            fullFilepath);
+
+        OpenDocument(fullFilepath);
+    }
+
+    void OpenParticleSystemEditorWindow::OpenDocumentFromBrowser()
+    {
+        AssetSelectionModel selection = AssetSelectionModel::AssetTypeSelection(azrtti_typeid<OpenParticle::ParticleAsset>());
+        AssetBrowserComponentRequestBus::Broadcast(&AssetBrowserComponentRequests::PickAssets, selection, parentWidget());
+        if (!selection.IsValid())
+        {
+            AZ_TracePrintf("SetupMenu", "PickAssets failed\n");
+            return;
+        }
+        const AZStd::string filePath = selection.GetResult()->GetParent()->GetFullPath();
+        if (!filePath.empty())
+        {
+            OpenDocument(filePath);
+            SetStatusMessage(tr("Particle opened: %1").arg(filePath.c_str()));
+        }
+    }
+
     void OpenParticleSystemEditorWindow::SaveDocument()
     {
         if (m_emitterTabWidget && m_emitterTabWidget->count() > 0)
@@ -499,6 +498,90 @@ namespace OpenParticleSystemEditor
                 }
             }
         }
+    }
+
+    void OpenParticleSystemEditorWindow::SaveDocumentAs()
+    {
+        if (!m_opened || !m_emitterTabWidget || m_emitterTabWidget->currentIndex() < 0)
+        {
+            return;
+        }
+
+        const QString currentTabName = m_emitterTabWidget->tabText(m_emitterTabWidget->currentIndex());
+        const auto document = m_tabWidgetDocument.find(currentTabName.toUtf8().data());
+        if (currentTabName.isEmpty() || document == m_tabWidgetDocument.end())
+        {
+            return;
+        }
+
+        const AZStd::string oldPath(document->second->GetAbsolutePath());
+        const QString fileName = QFileDialog::getSaveFileName(
+            this, tr("Save Particle As"), QFileInfo(oldPath.c_str()).absolutePath(), tr("Particle (*.particle)"));
+        if (fileName.isEmpty())
+        {
+            return;
+        }
+
+        const QFileInfo fileInfo(fileName);
+        AZStd::string newPath;
+        AZ::StringFunc::Path::ConstructFull(fileInfo.path().toUtf8(), fileInfo.fileName().toUtf8(), ".particle", newPath);
+        AzFramework::StringFunc::Path::Normalize(newPath);
+
+        if (QDir::cleanPath(newPath.c_str()).compare(QDir::cleanPath(oldPath.c_str()), Qt::CaseInsensitive) == 0)
+        {
+            if (document->second->Save())
+            {
+                SetStatusMessage(tr("Particle saved: %1").arg(currentTabName));
+            }
+            return;
+        }
+
+        // Tabs, documents and buses are keyed by file name, so another open particle with the new name would clash
+        AZStd::string newTabName;
+        AzFramework::StringFunc::Path::GetFileName(newPath.c_str(), newTabName);
+        if (newTabName != currentTabName.toUtf8().data() && m_tabWidgetDocument.find(newTabName) != m_tabWidgetDocument.end())
+        {
+            QMessageBox::warning(this, tr("Save Particle As"),
+                tr("A particle named %1 is already open. Close it before saving under that name.").arg(newTabName.c_str()));
+            return;
+        }
+
+        if (!document->second->SaveAs(newPath))
+        {
+            QMessageBox::warning(this, tr("Save Particle As"), tr("Could not save %1.").arg(newPath.c_str()));
+            return;
+        }
+
+        // Emitter positions in the graph live in a .particlelayout next to the particle
+        const QString oldLayoutPath = QString("%1layout").arg(oldPath.c_str());
+        const QString newLayoutPath = QString("%1layout").arg(newPath.c_str());
+        if (QFile::exists(oldLayoutPath))
+        {
+            QFile::remove(newLayoutPath);
+            QFile::copy(oldLayoutPath, newLayoutPath);
+        }
+
+        bool inScanFolder = false;
+        AZ::Data::AssetInfo assetInfo;
+        AZStd::string watchFolder;
+        AzToolsFramework::AssetSystemRequestBus::BroadcastResult(inScanFolder,
+            &AzToolsFramework::AssetSystem::AssetSystemRequest::GetSourceInfoBySourcePath, newPath.c_str(), assetInfo, watchFolder);
+        if (!inScanFolder)
+        {
+            QMessageBox::warning(this, tr("Save Particle As"),
+                tr("Saved %1, but it is outside the project's asset folders, so it cannot be opened in the Particle Editor.").arg(newPath.c_str()));
+            return;
+        }
+
+        // Close the original without saving (its file stays as it was) and carry on editing the copy
+        document->second->Close();
+        auto dockWidget = m_dockWidgets.find(currentTabName.toUtf8().data());
+        if (dockWidget != m_dockWidgets.end())
+        {
+            dockWidget->second->close();
+        }
+        OpenDocument(newPath);
+        SetStatusMessage(tr("Particle saved as: %1").arg(newPath.c_str()));
     }
 
     void OpenParticleSystemEditorWindow::SaveAllDocuments()
