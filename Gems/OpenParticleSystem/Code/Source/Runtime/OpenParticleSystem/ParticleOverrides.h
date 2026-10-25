@@ -14,6 +14,7 @@
 #include <AzCore/std/containers/array.h>
 #include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/containers/vector.h>
+#include <AzCore/std/function/function_template.h>
 #include <AzCore/std/string/string.h>
 
 namespace AZ
@@ -129,7 +130,16 @@ namespace OpenParticle
 
         void AddTo(EmitterOverrides& overrides) const;
 
+        //! Turns every override off. Values are kept; the editor sets them back to the asset's.
+        void ClearToggles();
+
+        static AZStd::vector<ParticleColorKey> DefaultColorOverLife();
+
         AZStd::string GetColorKeyLabel(int index) const;
+        AZ::u32 OnResetPressed();
+
+        //! Set by the editor component to reset this group with undo; not serialized, and only the Reset button calls it.
+        AZStd::function<void()> m_reset;
 
         //! The emitter's name in the .particle file and its position there, which is its index at runtime. The editor
         //! re-matches entries by name when the asset changes.
@@ -146,7 +156,7 @@ namespace OpenParticle
         bool m_overrideColor = false;
         AZ::Color m_color = AZ::Color::CreateOne();
         bool m_overrideColorOverLife = false;
-        AZStd::vector<ParticleColorKey> m_colorOverLife = { { 0.0f, AZ::Color::CreateOne() }, { 1.0f, AZ::Color(1.0f, 1.0f, 1.0f, 0.0f) } };
+        AZStd::vector<ParticleColorKey> m_colorOverLife = DefaultColorOverLife();
         bool m_overrideForce = false;
         AZ::Vector3 m_force = AZ::Vector3(0.0f, 0.0f, -9.8f);
         bool m_overrideFlipbookFps = false;
@@ -163,6 +173,10 @@ namespace OpenParticle
         ParticleOverrides ToOverrides() const;
 
         AZStd::string GetEmitterLabel(int index) const;
+        AZ::u32 OnResetAllPressed();
+
+        //! Set by the editor component to reset every override with undo; not serialized, and only the Reset button calls it.
+        AZStd::function<void()> m_resetAll;
 
         bool m_overridePlaybackSpeed = false;
         float m_playbackSpeed = 1.0f;

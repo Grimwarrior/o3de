@@ -14,6 +14,7 @@
 #include <AzToolsFramework/ToolsComponents/EditorVisibilityBus.h>
 #include <OpenParticleSystem/ParticleComponentConfig.h>
 
+#include <Editor/EditorParticleAssetValues.h>
 #include <Editor/EditorParticleRequestBus.h>
 
 namespace OpenParticle
@@ -63,7 +64,21 @@ namespace OpenParticle
         //! Returns true when the list changed.
         bool SyncEmitterOverrides();
 
+        //! Sets every value whose override is off to what the asset plays, so turning an override on starts from it.
+        void RefreshAssetDefaults();
+
+        //! Gives the override groups the callbacks their Reset buttons call.
+        void BindResetHandlers();
+
+        static constexpr int ResetEverything = -2;
+        static constexpr int ResetAllEmitters = -1;
+        //! Turns overrides off as one undo step: everything, the All Emitters group, or the emitter with that index.
+        void ResetOverrides(int target);
+
         //! The configuration the controller was last activated with, so an edit that only touches overrides can skip the restart.
         ParticleComponentConfig m_activatedConfig;
+
+        //! What the asset plays per emitter, read with the emitter list.
+        AZStd::vector<EmitterAssetValues> m_assetValues;
     };
 } // namespace OpenParticle

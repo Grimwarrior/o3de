@@ -15,7 +15,6 @@
 #include <AzCore/Utils/Utils.h>
 #include <AzCore/RTTI/BehaviorContext.h>
 #include <AzCore/Serialization/EditContext.h>
-#include <AzCore/Serialization/Json/JsonUtils.h>
 #include <AzFramework/Translation/TranslationDef.h>
 #include <AzToolsFramework/API/ToolsApplicationAPI.h>
 
@@ -72,6 +71,9 @@ namespace OpenParticle
                 editContext->Class<ParticleOverrideSettings>(QT_TRANSLATE_NOOP("OpenParticleSystem", "ParticleOverrideSettings"), "")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
                         ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+                    ->UIElement(AZ::Edit::UIHandlers::Button, "", QT_TRANSLATE_NOOP("OpenParticleSystem", "Turn every override off and go back to the asset's values"))
+                        ->Attribute(AZ::Edit::Attributes::ButtonText, QT_TRANSLATE_NOOP("OpenParticleSystem", "Reset All Overrides"))
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, &ParticleOverrideSettings::OnResetAllPressed)
                     ->DataElement(AZ::Edit::UIHandlers::CheckBox, &ParticleOverrideSettings::m_overridePlaybackSpeed, QT_TRANSLATE_NOOP("OpenParticleSystem", "Playback Speed"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the simulation speed of the whole system"))
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
@@ -92,6 +94,9 @@ namespace OpenParticle
 
                 editContext->Class<EmitterOverrideSettings>(QT_TRANSLATE_NOOP("OpenParticleSystem", "EmitterOverrideSettings"), "")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
+                    ->UIElement(AZ::Edit::UIHandlers::Button, "", QT_TRANSLATE_NOOP("OpenParticleSystem", "Turn this group's overrides off and go back to the asset's values"))
+                        ->Attribute(AZ::Edit::Attributes::ButtonText, QT_TRANSLATE_NOOP("OpenParticleSystem", "Reset"))
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, &EmitterOverrideSettings::OnResetPressed)
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &EmitterOverrideSettings::m_loop, QT_TRANSLATE_NOOP("OpenParticleSystem", "Loop"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "A non-looping emitter plays once"))
                     ->DataElement(AZ::Edit::UIHandlers::CheckBox, &EmitterOverrideSettings::m_overrideSpawnRate, QT_TRANSLATE_NOOP("OpenParticleSystem", "Spawn Rate"),
@@ -216,6 +221,7 @@ namespace OpenParticle
             config.m_autoPlay == m_activatedConfig.m_autoPlay && config.m_followActiveCamera == m_activatedConfig.m_followActiveCamera)
         {
             // Only the overrides changed, so the running effect takes them without restarting while a value is dragged.
+            RefreshAssetDefaults();
             m_controller.ApplyAuthoredOverrides();
             return AZ::Edit::PropertyRefreshLevels::None;
         }
@@ -241,60 +247,158 @@ namespace OpenParticle
     {
         auto& emitters = m_controller.m_configuration.m_overrides.m_emitters;
         const AZ::Data::AssetId assetId = m_controller.m_configuration.m_particleAsset.GetId();
+        bool changed = false;
         if (!assetId.IsValid())
         {
-            const bool hadEmitters = !emitters.empty();
+            changed = !emitters.empty();
             emitters.clear();
-            return hadEmitters;
+            m_assetValues.clear();
         }
-
         // The built asset has no emitter names, so they come from the source file, whose emitter order is the runtime index.
-        bool foundSource = false;
-        AZ::Data::AssetInfo sourceInfo;
-        AZStd::string watchFolder;
-        AzToolsFramework::AssetSystemRequestBus::BroadcastResult(
-            foundSource, &AzToolsFramework::AssetSystemRequestBus::Events::GetSourceInfoBySourceUUID, assetId.m_guid, sourceInfo, watchFolder);
-        if (!foundSource)
+        else if (ReadEmitterAssetValues(assetId, m_assetValues))
         {
-            return false;
-        }
-        const AZ::IO::Path sourcePath = AZ::IO::Path(watchFolder) / AZ::IO::Path(sourceInfo.m_relativePath);
-        const auto document = AZ::JsonSerializationUtils::ReadJsonFile(sourcePath.Native());
-        if (!document.IsSuccess() || !document.GetValue().IsObject())
-        {
-            return false;
-        }
-        const auto emitterArray = document.GetValue().FindMember("emitters");
-        if (emitterArray == document.GetValue().MemberEnd() || !emitterArray->value.IsArray())
-        {
-            return false;
+            AZStd::vector<EmitterOverrideSettings> synced;
+            for (const EmitterAssetValues& emitter : m_assetValues)
+            {
+                const auto existing = AZStd::find_if(
+                    emitters.begin(), emitters.end(),
+                    [&emitter](const EmitterOverrideSettings& entry) { return entry.m_emitterName == emitter.m_name; });
+                EmitterOverrideSettings& entry = synced.emplace_back(existing != emitters.end() ? *existing : EmitterOverrideSettings{});
+                entry.m_emitterName = emitter.m_name;
+                entry.m_emitterIndex = static_cast<AZ::u32>(synced.size() - 1);
+            }
+
+            changed = synced.size() != emitters.size();
+            for (size_t i = 0; !changed && i < synced.size(); ++i)
+            {
+                changed = synced[i].m_emitterName != emitters[i].m_emitterName || synced[i].m_emitterIndex != emitters[i].m_emitterIndex;
+            }
+            emitters = AZStd::move(synced);
         }
 
-        AZStd::vector<EmitterOverrideSettings> synced;
-        for (const auto& emitter : emitterArray->value.GetArray())
+        RefreshAssetDefaults();
+        BindResetHandlers();
+        return changed;
+    }
+
+    namespace
+    {
+        void SeedFromAsset(EmitterOverrideSettings& settings, const EmitterAssetValues& asset)
         {
-            AZStd::string name;
-            if (emitter.IsObject())
+            if (!settings.m_overrideSpawnRate && asset.m_spawnRate)
             {
-                if (const auto member = emitter.FindMember("name"); member != emitter.MemberEnd() && member->value.IsString())
+                settings.m_spawnRate = *asset.m_spawnRate;
+            }
+            if (!settings.m_overrideLifetime && asset.m_lifetime)
+            {
+                settings.m_lifetime = *asset.m_lifetime;
+            }
+            if (!settings.m_overrideSize && asset.m_size)
+            {
+                settings.m_size = *asset.m_size;
+            }
+            if (!settings.m_overrideColor && asset.m_color)
+            {
+                settings.m_color = *asset.m_color;
+            }
+            if (!settings.m_overrideColorOverLife && !asset.m_colorOverLife.empty())
+            {
+                settings.m_colorOverLife = asset.m_colorOverLife;
+            }
+            if (!settings.m_overrideForce && asset.m_force)
+            {
+                settings.m_force = *asset.m_force;
+            }
+            if (!settings.m_overrideFlipbookFps && asset.m_flipbookFps)
+            {
+                settings.m_flipbookFps = *asset.m_flipbookFps;
+            }
+        }
+
+        // All Emitters starts each value from the first emitter that has it.
+        EmitterAssetValues FirstOfEach(const AZStd::vector<EmitterAssetValues>& emitters)
+        {
+            EmitterAssetValues first;
+            for (const EmitterAssetValues& emitter : emitters)
+            {
+                first.m_spawnRate = first.m_spawnRate ? first.m_spawnRate : emitter.m_spawnRate;
+                first.m_lifetime = first.m_lifetime ? first.m_lifetime : emitter.m_lifetime;
+                first.m_size = first.m_size ? first.m_size : emitter.m_size;
+                first.m_color = first.m_color ? first.m_color : emitter.m_color;
+                first.m_force = first.m_force ? first.m_force : emitter.m_force;
+                first.m_flipbookFps = first.m_flipbookFps ? first.m_flipbookFps : emitter.m_flipbookFps;
+                if (first.m_colorOverLife.empty())
                 {
-                    name = member->value.GetString();
+                    first.m_colorOverLife = emitter.m_colorOverLife;
                 }
             }
-            const auto existing = AZStd::find_if(
-                emitters.begin(), emitters.end(), [&name](const EmitterOverrideSettings& entry) { return entry.m_emitterName == name; });
-            EmitterOverrideSettings& entry = synced.emplace_back(existing != emitters.end() ? *existing : EmitterOverrideSettings{});
-            entry.m_emitterName = name;
-            entry.m_emitterIndex = static_cast<AZ::u32>(synced.size() - 1);
+            return first;
         }
+    } // namespace
 
-        bool changed = synced.size() != emitters.size();
-        for (size_t i = 0; !changed && i < synced.size(); ++i)
+    // Values whose override is off have no effect, so they can follow the asset without an undo step.
+    void EditorParticleComponent::RefreshAssetDefaults()
+    {
+        ParticleOverrideSettings& overrides = m_controller.m_configuration.m_overrides;
+        SeedFromAsset(overrides.m_allEmitters, FirstOfEach(m_assetValues));
+        for (EmitterOverrideSettings& emitter : overrides.m_emitters)
         {
-            changed = synced[i].m_emitterName != emitters[i].m_emitterName || synced[i].m_emitterIndex != emitters[i].m_emitterIndex;
+            if (emitter.m_emitterIndex < m_assetValues.size())
+            {
+                SeedFromAsset(emitter, m_assetValues[emitter.m_emitterIndex]);
+            }
         }
-        emitters = AZStd::move(synced);
-        return changed;
+    }
+
+    // A button's ChangeNotify runs after the Inspector has recorded its undo step (and in the DPE after this component's own
+    // ChangeNotify), so the Reset buttons call back here to make their change, undo step and refresh themselves.
+    void EditorParticleComponent::BindResetHandlers()
+    {
+        ParticleOverrideSettings& overrides = m_controller.m_configuration.m_overrides;
+        overrides.m_resetAll = [this]() { ResetOverrides(ResetEverything); };
+        overrides.m_allEmitters.m_reset = [this]() { ResetOverrides(ResetAllEmitters); };
+        for (EmitterOverrideSettings& emitter : overrides.m_emitters)
+        {
+            const int index = static_cast<int>(emitter.m_emitterIndex);
+            emitter.m_reset = [this, index]() { ResetOverrides(index); };
+        }
+    }
+
+    void EditorParticleComponent::ResetOverrides(int target)
+    {
+        AzToolsFramework::ScopedUndoBatch undoBatch("Reset Particle Overrides");
+
+        ParticleOverrideSettings& overrides = m_controller.m_configuration.m_overrides;
+        if (target == ResetEverything)
+        {
+            overrides.m_overridePlaybackSpeed = false;
+            overrides.m_playbackSpeed = 1.0f;
+            overrides.m_allEmitters.ClearToggles();
+            for (EmitterOverrideSettings& emitter : overrides.m_emitters)
+            {
+                emitter.ClearToggles();
+            }
+        }
+        else if (target == ResetAllEmitters)
+        {
+            overrides.m_allEmitters.ClearToggles();
+        }
+        else
+        {
+            for (EmitterOverrideSettings& emitter : overrides.m_emitters)
+            {
+                if (static_cast<int>(emitter.m_emitterIndex) == target)
+                {
+                    emitter.ClearToggles();
+                }
+            }
+        }
+        RefreshAssetDefaults();
+        undoBatch.MarkEntityDirty(GetEntityId());
+
+        m_controller.ApplyAuthoredOverrides();
+        AzToolsFramework::ToolsApplicationNotificationBus::Broadcast(
+            &AzToolsFramework::ToolsApplicationEvents::InvalidatePropertyDisplay, AzToolsFramework::Refresh_EntireTree);
     }
 
     void EditorParticleComponent::OnEntityVisibilityChanged(bool visibility)

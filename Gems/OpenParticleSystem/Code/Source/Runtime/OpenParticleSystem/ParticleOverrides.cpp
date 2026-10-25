@@ -8,6 +8,7 @@
 
 #include "ParticleOverrides.h"
 
+#include <AzCore/Serialization/EditContextConstants.inl>
 #include <AzCore/Serialization/SerializeContext.h>
 #include <AzCore/std/sort.h>
 
@@ -381,6 +382,41 @@ namespace OpenParticle
             emitter.AddTo(overrides.m_emitters[emitter.m_emitterIndex]);
         }
         return overrides;
+    }
+
+    void EmitterOverrideSettings::ClearToggles()
+    {
+        m_loop = LoopOverride::Asset;
+        m_overrideSpawnRate = false;
+        m_overrideLifetime = false;
+        m_overrideSize = false;
+        m_overrideColor = false;
+        m_overrideColorOverLife = false;
+        m_overrideForce = false;
+        m_overrideFlipbookFps = false;
+    }
+
+    AZStd::vector<ParticleColorKey> EmitterOverrideSettings::DefaultColorOverLife()
+    {
+        return { { 0.0f, AZ::Color::CreateOne() }, { 1.0f, AZ::Color(1.0f, 1.0f, 1.0f, 0.0f) } };
+    }
+
+    AZ::u32 EmitterOverrideSettings::OnResetPressed()
+    {
+        if (m_reset)
+        {
+            m_reset();
+        }
+        return AZ::Edit::PropertyRefreshLevels::EntireTree;
+    }
+
+    AZ::u32 ParticleOverrideSettings::OnResetAllPressed()
+    {
+        if (m_resetAll)
+        {
+            m_resetAll();
+        }
+        return AZ::Edit::PropertyRefreshLevels::EntireTree;
     }
 
     AZStd::string EmitterOverrideSettings::GetColorKeyLabel(int index) const

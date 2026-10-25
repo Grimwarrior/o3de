@@ -9,6 +9,8 @@
 set(FILES
     Source/Editor/EditorParticleComponent.cpp
     Source/Editor/EditorParticleComponent.h
+    Source/Editor/EditorParticleAssetValues.cpp
+    Source/Editor/EditorParticleAssetValues.h
     Source/Editor/EditorSystemComponent.cpp
     Source/Editor/EditorSystemComponent.h
     Source/Editor/ParticleBrowserInteractions.h
