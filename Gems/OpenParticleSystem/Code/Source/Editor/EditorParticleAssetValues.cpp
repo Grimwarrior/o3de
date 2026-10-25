@@ -295,6 +295,8 @@ namespace OpenParticle
         {
             EmitterAssetValues values;
             values.m_name = ReadString(FindMember(emitter, "name"));
+            // Files from before the emitter speed setting play at 1.
+            values.m_emitterSpeed = ReadFloat(FindValueObject(emitter, "config", "playbackSpeed"), 1.0f);
             if (const JsonValue* object = FindValueObject(emitter, "OpenParticle::EmitSpawn", "spawnRateObject"))
             {
                 values.m_spawnRate = ReadChannel(*object, 0, distributions, 0.0f);

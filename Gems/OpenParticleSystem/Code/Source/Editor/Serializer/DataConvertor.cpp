@@ -140,6 +140,7 @@ namespace OpenParticle
         runtimeData.disabled = !editData.enabled;
         runtimeData.worldAxes = editData.worldAxes;
         runtimeData.followEmitter = editData.followEmitter;
+        runtimeData.playbackSpeed = editData.playbackSpeed;
     }
 
     void DataConvertor::ToRuntime(OpenParticle::EmitBurstList& editData, SimuCore::ParticleCore::EmitBurstList& runtimeData)

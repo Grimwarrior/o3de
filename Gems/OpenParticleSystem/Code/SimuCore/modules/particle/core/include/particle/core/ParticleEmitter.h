@@ -49,6 +49,8 @@ namespace SimuCore::ParticleCore {
             bool worldAxes = false;
             // World-space emitters only: the share (0 to 1) of the emitter's own movement that live particles take over each frame
             float followEmitter = 0.f;
+            // Scales this emitter's time step, start delay and duration included; 1 is normal and 0.5 is slow motion
+            float playbackSpeed = 1.f;
         };
 
         ParticleEmitter(const ParticleEmitter::Config& cfg, EmitterCreateInfo createInfo);

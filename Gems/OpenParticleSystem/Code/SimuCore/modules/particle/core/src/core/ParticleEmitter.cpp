@@ -99,6 +99,8 @@ namespace SimuCore::ParticleCore {
         ResetEventPool(emitterID, ParticleEventType::UPDATE_DEATH);
         ResetEventPool(emitterID, ParticleEventType::UPDATE_COLLISION);
         auto& cfg = *dataPool->Data<Config>(config);
+        // Emitter time runs at its own speed; the scaled step is also what Tick spawns and updates with.
+        delta *= AZStd::max(cfg.playbackSpeed, 0.f);
         currTime += delta;
         if (cfg.loop) {
             bool next = (currTime - delta >= EndTime());

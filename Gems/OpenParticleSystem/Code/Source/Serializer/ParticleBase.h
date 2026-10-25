@@ -144,6 +144,8 @@ namespace OpenParticle
         bool worldAxes = false;
         // World-space emitters: how much of the emitter's own movement (0 to 1) live particles take over, so they trail a moving blade.
         float followEmitter = 0.f;
+        // Speed of this emitter's own time, 1 is normal. Files from before this setting load at 1.
+        float playbackSpeed = 1.f;
     };
 
     struct SingleBurst

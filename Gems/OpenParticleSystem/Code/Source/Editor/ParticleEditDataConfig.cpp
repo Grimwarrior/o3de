@@ -153,7 +153,8 @@ namespace OpenParticle
                 ->Field("loop", &OpenParticle::EmitterConfig::loop)
                 ->Field("enabled", &OpenParticle::EmitterConfig::enabled)
                 ->Field("worldAxes", &OpenParticle::EmitterConfig::worldAxes)
-                ->Field("followEmitter", &OpenParticle::EmitterConfig::followEmitter);
+                ->Field("followEmitter", &OpenParticle::EmitterConfig::followEmitter)
+                ->Field("playbackSpeed", &OpenParticle::EmitterConfig::playbackSpeed);
 
             serializeContext->Class<OpenParticle::SingleBurst>()
                 ->Version(0)
@@ -571,6 +572,13 @@ namespace OpenParticle
                         AZ::Edit::UIHandlers::Default, &OpenParticle::EmitterConfig::duration,
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Emitter Duration"), QT_TRANSLATE_NOOP("OpenParticleSystem", "The duration of the emitter emits particles."))
                         ->Attribute(AZ::Edit::Attributes::Min, .05f)
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::Default, &OpenParticle::EmitterConfig::playbackSpeed,
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Playback Speed"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "How fast this emitter's time runs: 1 is normal, 0.5 is slow motion and 2 is double speed. "
+                        "It scales everything the emitter does over time, its start time and duration included."))
+                        ->Attribute(AZ::Edit::Attributes::Min, 0.f)
+                        ->Attribute(AZ::Edit::Attributes::Step, 0.05f)
                     ->DataElement(
                         AZ::Edit::UIHandlers::Default, &OpenParticle::EmitterConfig::localSpace,
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Use Local Space"), QT_TRANSLATE_NOOP("OpenParticleSystem", "Whether the emitter uses local space."))

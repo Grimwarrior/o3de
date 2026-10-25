@@ -138,6 +138,10 @@ namespace OpenParticle
             {
                 emitter.GetEmitterConfig()->loop = o.m_loop.m_value;
             }
+            if (o.m_emitterSpeed.m_set)
+            {
+                emitter.GetEmitterConfig()->playbackSpeed = AZStd::max(o.m_emitterSpeed.m_value, 0.0f);
+            }
             if (o.m_spawnRate.m_set)
             {
                 if (auto* data = FindData<Core::EmitSpawn>(emitter.GetEmitEffectors()))
@@ -195,7 +199,7 @@ namespace OpenParticle
 
         bool HasAny(const EmitterOverrides& o)
         {
-            return (o.m_loop.m_set || o.m_spawnRate.m_set || o.m_lifetime.m_set || o.m_flipbookFps.m_set || o.m_size.m_set ||
+            return (o.m_loop.m_set || o.m_emitterSpeed.m_set || o.m_spawnRate.m_set || o.m_lifetime.m_set || o.m_flipbookFps.m_set || o.m_size.m_set ||
                      o.m_force.m_set || o.m_color.m_set || o.m_colorOverLife.m_set);
         }
 
@@ -207,7 +211,8 @@ namespace OpenParticle
 
         bool DropsAny(const EmitterOverrides& before, const EmitterOverrides& after)
         {
-            return (Dropped(before.m_loop, after.m_loop) || Dropped(before.m_spawnRate, after.m_spawnRate) ||
+            return (Dropped(before.m_loop, after.m_loop) || Dropped(before.m_emitterSpeed, after.m_emitterSpeed) ||
+                    Dropped(before.m_spawnRate, after.m_spawnRate) ||
                     Dropped(before.m_lifetime, after.m_lifetime) || Dropped(before.m_flipbookFps, after.m_flipbookFps) ||
                     Dropped(before.m_size, after.m_size) || Dropped(before.m_force, after.m_force) ||
                     Dropped(before.m_color, after.m_color) || Dropped(before.m_colorOverLife, after.m_colorOverLife));
@@ -294,6 +299,8 @@ namespace OpenParticle
                 ->Field("EmitterName", &EmitterOverrideSettings::m_emitterName)
                 ->Field("EmitterIndex", &EmitterOverrideSettings::m_emitterIndex)
                 ->Field("Loop", &EmitterOverrideSettings::m_loop)
+                ->Field("OverrideEmitterSpeed", &EmitterOverrideSettings::m_overrideEmitterSpeed)
+                ->Field("EmitterSpeed", &EmitterOverrideSettings::m_emitterSpeed)
                 ->Field("OverrideSpawnRate", &EmitterOverrideSettings::m_overrideSpawnRate)
                 ->Field("SpawnRate", &EmitterOverrideSettings::m_spawnRate)
                 ->Field("OverrideLifetime", &EmitterOverrideSettings::m_overrideLifetime)
@@ -316,6 +323,10 @@ namespace OpenParticle
         if (m_loop != LoopOverride::Asset)
         {
             overrides.m_loop.Set(m_loop == LoopOverride::On);
+        }
+        if (m_overrideEmitterSpeed)
+        {
+            overrides.m_emitterSpeed.Set(m_emitterSpeed);
         }
         if (m_overrideSpawnRate)
         {
@@ -387,6 +398,7 @@ namespace OpenParticle
     void EmitterOverrideSettings::ClearToggles()
     {
         m_loop = LoopOverride::Asset;
+        m_overrideEmitterSpeed = false;
         m_overrideSpawnRate = false;
         m_overrideLifetime = false;
         m_overrideSize = false;

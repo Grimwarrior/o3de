@@ -23,6 +23,7 @@ namespace OpenParticle
     struct EmitterAssetValues
     {
         AZStd::string m_name;
+        AZStd::optional<float> m_emitterSpeed;
         AZStd::optional<float> m_spawnRate;
         AZStd::optional<float> m_lifetime;
         AZStd::optional<AZ::Vector3> m_size;

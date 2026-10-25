@@ -70,6 +70,8 @@ namespace OpenParticle
     struct EmitterOverrides
     {
         OverrideValue<bool> m_loop;
+        //! The emitter's own time scale; it multiplies with the system's playback speed.
+        OverrideValue<float> m_emitterSpeed;
         OverrideValue<float> m_spawnRate;
         OverrideValue<float> m_lifetime;
         OverrideValue<float> m_flipbookFps;
@@ -147,6 +149,8 @@ namespace OpenParticle
         AZ::u32 m_emitterIndex = 0;
 
         LoopOverride m_loop = LoopOverride::Asset;
+        bool m_overrideEmitterSpeed = false;
+        float m_emitterSpeed = 1.0f;
         bool m_overrideSpawnRate = false;
         float m_spawnRate = 10.0f;
         bool m_overrideLifetime = false;

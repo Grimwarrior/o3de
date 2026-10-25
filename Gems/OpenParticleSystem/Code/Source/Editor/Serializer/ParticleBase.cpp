@@ -48,6 +48,7 @@ namespace OpenParticle
         maxSize = AZStd::clamp<AZ::u32>(maxSize, 1u, 1000000u);
         startTime = AZStd::max(startTime, 0.f);
         duration = AZStd::max(duration, 0.05f);
+        playbackSpeed = AZStd::max(playbackSpeed, 0.f);
     }
 
     void SpriteConfig::CheckParam()

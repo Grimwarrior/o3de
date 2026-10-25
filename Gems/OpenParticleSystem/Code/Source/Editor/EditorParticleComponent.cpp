@@ -99,6 +99,14 @@ namespace OpenParticle
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, &EmitterOverrideSettings::OnResetPressed)
                     ->DataElement(AZ::Edit::UIHandlers::ComboBox, &EmitterOverrideSettings::m_loop, QT_TRANSLATE_NOOP("OpenParticleSystem", "Loop"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "A non-looping emitter plays once"))
+                    ->DataElement(AZ::Edit::UIHandlers::CheckBox, &EmitterOverrideSettings::m_overrideEmitterSpeed, QT_TRANSLATE_NOOP("OpenParticleSystem", "Emitter Speed"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the emitter's own Playback Speed from the Particle Editor; it multiplies with the system Playback Speed above"))
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
+                    ->DataElement(AZ::Edit::UIHandlers::Default, &EmitterOverrideSettings::m_emitterSpeed, QT_TRANSLATE_NOOP("OpenParticleSystem", "Speed"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "1 is normal speed and 0.5 is slow motion"))
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::m_overrideEmitterSpeed)
+                        ->Attribute(AZ::Edit::Attributes::Min, 0.0f)
+                        ->Attribute(AZ::Edit::Attributes::Step, 0.05f)
                     ->DataElement(AZ::Edit::UIHandlers::CheckBox, &EmitterOverrideSettings::m_overrideSpawnRate, QT_TRANSLATE_NOOP("OpenParticleSystem", "Spawn Rate"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the particles spawned per second, replacing any curve or random value from the asset"))
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
@@ -285,6 +293,10 @@ namespace OpenParticle
     {
         void SeedFromAsset(EmitterOverrideSettings& settings, const EmitterAssetValues& asset)
         {
+            if (!settings.m_overrideEmitterSpeed && asset.m_emitterSpeed)
+            {
+                settings.m_emitterSpeed = *asset.m_emitterSpeed;
+            }
             if (!settings.m_overrideSpawnRate && asset.m_spawnRate)
             {
                 settings.m_spawnRate = *asset.m_spawnRate;
@@ -321,6 +333,7 @@ namespace OpenParticle
             EmitterAssetValues first;
             for (const EmitterAssetValues& emitter : emitters)
             {
+                first.m_emitterSpeed = first.m_emitterSpeed ? first.m_emitterSpeed : emitter.m_emitterSpeed;
                 first.m_spawnRate = first.m_spawnRate ? first.m_spawnRate : emitter.m_spawnRate;
                 first.m_lifetime = first.m_lifetime ? first.m_lifetime : emitter.m_lifetime;
                 first.m_size = first.m_size ? first.m_size : emitter.m_size;
