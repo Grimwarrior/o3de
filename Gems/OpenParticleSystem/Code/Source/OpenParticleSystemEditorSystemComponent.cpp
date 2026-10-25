@@ -18,6 +18,7 @@
 #include <AzToolsFramework/ActionManager/Menu/MenuManagerInterface.h>
 #include <OpenParticleSystemEditor/Window/OpenParticleSystemEditorWindow.h>
 #include <OpenParticleSystemEditor/Window/OpenParticleSystemEditorActionIdentifiers.h>
+#include <OpenParticleSystemEditor/Window/Controls/PropertyColorKeyGradientCtrl.h>
 #include <LyViewPaneNames.h>
 
 namespace OpenParticleSystem
@@ -64,10 +65,14 @@ namespace OpenParticleSystem
 
         AzToolsFramework::EditorMenuNotificationBus::Handler::BusConnect();
         AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler::BusConnect();
+
+        // The Particle component's colour keys use it, so it lives as long as the Editor rather than the Particle Editor window.
+        OpenParticleSystemEditor::RegisterColorKeyGradientPropertyHandler();
     }
 
     void OpenParticleSystemEditorSystemComponent::Deactivate()
     {
+        OpenParticleSystemEditor::UnregisterColorKeyGradientPropertyHandler();
         AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler::BusDisconnect();
         AzToolsFramework::EditorEvents::Bus::Handler::BusDisconnect();
         OpenParticleSystemSystemComponent::Deactivate();

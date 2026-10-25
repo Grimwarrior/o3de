@@ -42,6 +42,15 @@ namespace OpenParticle
         bool m_set = false;
     };
 
+    //! How a colour key blends into the next key.
+    enum class ColorKeyBlend : AZ::u8
+    {
+        Linear,
+        Step,
+        EaseIn,
+        EaseOut
+    };
+
     //! One stop of a colour-over-lifetime gradient; time 0 is a particle's birth and 1 its death.
     struct ParticleColorKey
     {
@@ -50,6 +59,7 @@ namespace OpenParticle
 
         float m_time = 0.0f;
         AZ::Color m_color = AZ::Color::CreateOne();
+        ColorKeyBlend m_blend = ColorKeyBlend::Linear;
     };
 
     //! Curves a colour-over-lifetime override added to one simulation, per emitter and channel. The simulation owns them,
@@ -164,4 +174,5 @@ namespace OpenParticle
 namespace AZ
 {
     AZ_TYPE_INFO_SPECIALIZE(OpenParticle::LoopOverride, "{9888BBD9-10B1-42EF-96B7-C0CE3942686B}");
+    AZ_TYPE_INFO_SPECIALIZE(OpenParticle::ColorKeyBlend, "{B2D64A1E-7C39-4F85-A0E3-61C9D8F25B47}");
 }

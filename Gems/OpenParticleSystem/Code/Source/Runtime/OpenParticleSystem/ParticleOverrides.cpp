@@ -66,6 +66,22 @@ namespace OpenParticle
             }
         }
 
+        // The curve applies a key's mode to the segment that ends at that key, so a key's blend goes on the key after it.
+        Core::KeyPointInterpMode ToInterpMode(ColorKeyBlend blend)
+        {
+            switch (blend)
+            {
+            case ColorKeyBlend::Step:
+                return Core::KeyPointInterpMode::STEP;
+            case ColorKeyBlend::EaseIn:
+                return Core::KeyPointInterpMode::SINE_IN;
+            case ColorKeyBlend::EaseOut:
+                return Core::KeyPointInterpMode::SINE_OUT;
+            default:
+                return Core::KeyPointInterpMode::LINEAR;
+            }
+        }
+
         // The lifetime module replaces a particle's colour every frame, so the gradient goes into its four channels. Keys are
         // clamped to 0-1 by the curve, so each channel is divided by its peak, which becomes the curve's value factor.
         void SetColorCurves(
@@ -94,9 +110,11 @@ namespace OpenParticle
                 }
                 curve->SetValueFactor(peak);
                 // Keys arrive sorted, and the curve only places a key correctly when it is appended in time order.
-                for (const auto& key : keys)
+                for (size_t index = 0; index < keys.size(); ++index)
                 {
-                    curve->AddKeyPoint(key.m_time, key.m_color.GetElement(static_cast<int32_t>(channel)) / peak, Core::KeyPointInterpMode::LINEAR);
+                    const Core::KeyPointInterpMode mode =
+                        index > 0 ? ToInterpMode(keys[index - 1].m_blend) : Core::KeyPointInterpMode::LINEAR;
+                    curve->AddKeyPoint(keys[index].m_time, keys[index].m_color.GetElement(static_cast<int32_t>(channel)) / peak, mode);
                 }
                 curve->NormalizeKeyPoints();
 
@@ -245,10 +263,17 @@ namespace OpenParticle
     {
         if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
+            serializeContext->Enum<ColorKeyBlend>()
+                ->Value("Linear", ColorKeyBlend::Linear)
+                ->Value("Step", ColorKeyBlend::Step)
+                ->Value("EaseIn", ColorKeyBlend::EaseIn)
+                ->Value("EaseOut", ColorKeyBlend::EaseOut);
+
             serializeContext->Class<ParticleColorKey>()
                 ->Version(0)
                 ->Field("Time", &ParticleColorKey::m_time)
-                ->Field("Color", &ParticleColorKey::m_color);
+                ->Field("Color", &ParticleColorKey::m_color)
+                ->Field("Blend", &ParticleColorKey::m_blend);
         }
     }
 

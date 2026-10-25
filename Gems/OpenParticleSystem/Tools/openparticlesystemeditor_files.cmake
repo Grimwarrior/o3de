@@ -99,6 +99,8 @@ set(FILES
     OpenParticleSystemEditor/Window/Controls/GradientWidget.cpp
     OpenParticleSystemEditor/Window/Controls/PropertyGradientColorCtrl.h
     OpenParticleSystemEditor/Window/Controls/PropertyGradientColorCtrl.cpp
+    OpenParticleSystemEditor/Window/Controls/PropertyColorKeyGradientCtrl.h
+    OpenParticleSystemEditor/Window/Controls/PropertyColorKeyGradientCtrl.cpp
     OpenParticleSystemEditor/Window/Controls/DistIndexUtil.h
     OpenParticleSystemEditor/Window/Controls/DistIndexUtil.cpp
     OpenParticleSystemEditor/Window/Controls/CommonDefs.h

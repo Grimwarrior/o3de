@@ -121,8 +121,9 @@ namespace OpenParticle
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the colour and alpha gradient over each particle's life; "
                             "only applies to emitters that have the Color Over Lifetime module"))
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
-                    ->DataElement(AZ::Edit::UIHandlers::Default, &EmitterOverrideSettings::m_colorOverLife, QT_TRANSLATE_NOOP("OpenParticleSystem", "Keys"),
-                            QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient stops, blended linearly; the first key holds before its time and the last after"))
+                    ->DataElement(AZ_CRC_CE("ParticleColorKeyGradient"), &EmitterOverrideSettings::m_colorOverLife, QT_TRANSLATE_NOOP("OpenParticleSystem", "Keys"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient stops; the first key holds before its time and the last after. "
+                            "Click the gradient to edit the keys in the gradient editor"))
                         ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::m_overrideColorOverLife)
                         ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
                         ->Attribute(AZ::Edit::Attributes::IndexedChildNameLabelOverride, &EmitterOverrideSettings::GetColorKeyLabel)
@@ -148,7 +149,15 @@ namespace OpenParticle
                         ->Attribute(AZ::Edit::Attributes::Step, 0.01f)
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::AttributesAndValues)
                     ->DataElement(AZ::Edit::UIHandlers::Color, &ParticleColorKey::m_color, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color"), "")
-                        ->Attribute("AlphaChannel", true);
+                        ->Attribute("AlphaChannel", true)
+                    ->DataElement(AZ::Edit::UIHandlers::ComboBox, &ParticleColorKey::m_blend, QT_TRANSLATE_NOOP("OpenParticleSystem", "Blend"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "How this key blends into the next key; Step holds this colour until the next key"));
+
+                editContext->Enum<ColorKeyBlend>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Color Key Blend"), "")
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Linear"), ColorKeyBlend::Linear)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Step"), ColorKeyBlend::Step)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Ease In"), ColorKeyBlend::EaseIn)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Ease Out"), ColorKeyBlend::EaseOut);
             }
         }
 
