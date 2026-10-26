@@ -384,6 +384,11 @@ namespace OpenParticleSystemEditor
         }
     }
 
+    AZ::EntityId OpenParticleViewportRenderer::GetPreviewParticleEntityId() const
+    {
+        return m_particleEntity != nullptr ? m_particleEntity->GetId() : AZ::EntityId();
+    }
+
     void OpenParticleViewportRenderer::OnPlaybackSpeedChanged(float speed)
     {
         OpenParticle::EditorParticleRequestBus::Event(

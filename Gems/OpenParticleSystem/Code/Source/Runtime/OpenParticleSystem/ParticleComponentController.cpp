@@ -189,6 +189,55 @@ namespace OpenParticle
         return m_isVisible;
     }
 
+    bool ParticleComponentController::IsPlaying() const
+    {
+        return m_particleHandle.IsValid() && m_particleHandle->m_status == ParticleStatus::PLAYING;
+    }
+
+    float ParticleComponentController::GetPlaybackTime() const
+    {
+        return m_particleHandle.IsValid() ? m_particleHandle->GetPlayTime() : 0.0f;
+    }
+
+    float ParticleComponentController::GetPlaybackDuration() const
+    {
+        return m_particleHandle.IsValid() ? m_particleHandle->GetTimelineLength() : 0.0f;
+    }
+
+    bool ParticleComponentController::IsLooping() const
+    {
+        return m_particleHandle.IsValid() && m_particleHandle->IsLooping();
+    }
+
+    void ParticleComponentController::SetPlaybackTime(float seconds)
+    {
+        const bool wasPlaying = IsPlaying();
+        // A fresh simulation is the only way back to an earlier time, so seeking restarts and simulates forward.
+        Deregister();
+        Register();
+        if (m_particleHandle.IsValid())
+        {
+            m_particleHandle->m_status = wasPlaying ? ParticleStatus::PLAYING : ParticleStatus::PAUSED;
+            if (seconds > 0.0f)
+            {
+                m_particleHandle->RequestAdvance(seconds);
+            }
+        }
+    }
+
+    void ParticleComponentController::Step(float seconds)
+    {
+        if (!m_particleHandle.IsValid())
+        {
+            Register(); // stepping after Stop starts again from the beginning
+        }
+        if (m_particleHandle.IsValid())
+        {
+            m_particleHandle->m_status = ParticleStatus::PAUSED;
+            m_particleHandle->RequestAdvance(AZStd::max(seconds, 0.0f));
+        }
+    }
+
     template<typename Edit>
     void ParticleComponentController::EditOverrides(Edit&& edit)
     {

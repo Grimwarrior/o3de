@@ -80,6 +80,7 @@ namespace OpenParticleSystemEditor
         void ConnectEBus();
 
         const OpenParticleSystem::CameraTransform& GetParticleEditorCameraTransform() override;
+        AZ::EntityId GetPreviewParticleEntityId() const override;
 
         // OpenParticleSystemEditor::ParticleDocumentNotifyBus::Handler interface overrides...
         void OnDocumentOpened(AZ::Data::Asset<OpenParticle::ParticleAsset> particleAsset, [[maybe_unused]] AZStd::string particleAssetPath) override;

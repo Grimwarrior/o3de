@@ -16,6 +16,8 @@
 #include <QLabel>
 #include <QSlider>
 #include <QDoubleValidator>
+#include <QTimer>
+#include <OpenParticleSystem/ParticleEditorRequestBus.h>
 #include <AzCore/std/algorithm.h>
 #include <OpenParticleSystem/ParticleRequestBus.h>
 #include <QAbstractItemView>
@@ -30,6 +32,11 @@ namespace OpenParticleSystemEditor
     static const char* ICON_STOP = ":/stylesheet/img/UI20/toolbar/Deploy.svg";
     static const char* ICON_NEXT = ":/Breadcrumb/img/UI20/Breadcrumb/arrow_right-default_hover.svg";
     static const char* ICON_RESET = ":/stylesheet/img/logging/reset.svg";
+    static const char* ICON_PAUSE = ":/Trackview/Pause.svg";
+    static constexpr int SliderSteps = 1000;
+    static constexpr float FrameStep = 1.0f / 30.0f;
+    // A non-looping particle restarts this long after its last emitter stops, so the last particles can finish.
+    static constexpr float LoopRestartDelay = 1.0f;
     static constexpr float MaxPreviewSpeed = 10.0f;
 
     ViewInspector::ViewInspector(QWidget* parent)
@@ -44,10 +51,13 @@ namespace OpenParticleSystemEditor
         m_viewPort = new OpenParticleViewportWidget(this);
         m_verticalLayout->addWidget(m_viewPort);
 
-#if defined(O3DE_REV_BUILD_RELEASE) && (O3DE_REV_BUILD_RELEASE)
         CreatePlayerProgressBar();
         CreatePlayerAction();
-#endif
+
+        // Polls the preview, which simulates on the render thread, about thirty times a second.
+        m_playerTimer = new QTimer(this);
+        connect(m_playerTimer, &QTimer::timeout, this, &ViewInspector::UpdatePlayerBar);
+        m_playerTimer->start(33);
 
         setLayout(m_verticalLayout);
 
@@ -131,15 +141,40 @@ namespace OpenParticleSystemEditor
     void ViewInspector::CreatePlayerProgressBar()
     {
         QHBoxLayout* horizontalLayout = new QHBoxLayout(this);
-        QSlider* sliderPlay = new QSlider(this);
-        sliderPlay->setOrientation(Qt::Horizontal);
-        QLabel* timePlay = new QLabel("00:00:00", this);
-        timePlay->setFixedHeight(18);
-        timePlay->setFixedWidth(55);
+        m_timeSlider = new QSlider(this);
+        m_timeSlider->setOrientation(Qt::Horizontal);
+        m_timeSlider->setRange(0, SliderSteps);
+        m_timeSlider->setToolTip(tr("Drag to scrub the preview through its duration"));
+        // Scrubbing pauses the preview, seeks it on every move and resumes it on release if it was playing.
+        connect(m_timeSlider, &QSlider::sliderPressed, this, [this]()
+            {
+                const AZ::EntityId preview = GetPreviewEntityId();
+                bool playing = false;
+                OpenParticle::ParticleRequestBus::EventResult(playing, preview, &OpenParticle::ParticleRequest::IsPlaying);
+                m_resumeAfterScrub = playing;
+                OpenParticle::ParticleRequestBus::Event(preview, &OpenParticle::ParticleRequest::Pause);
+            });
+        connect(m_timeSlider, &QSlider::sliderMoved, this, [this](int value)
+            {
+                const float seconds = m_duration * static_cast<float>(value) / static_cast<float>(SliderSteps);
+                OpenParticle::ParticleRequestBus::Event(GetPreviewEntityId(), &OpenParticle::ParticleRequest::SetPlaybackTime, seconds);
+            });
+        connect(m_timeSlider, &QSlider::sliderReleased, this, [this]()
+            {
+                if (m_resumeAfterScrub)
+                {
+                    OpenParticle::ParticleRequestBus::Event(GetPreviewEntityId(), &OpenParticle::ParticleRequest::Play);
+                }
+            });
+
+        m_timeLabel = new QLabel("00:00:00", this);
+        m_timeLabel->setFixedHeight(18);
+        m_timeLabel->setMinimumWidth(110);
+        m_timeLabel->setToolTip(tr("Preview time / duration (minutes:seconds:hundredths)"));
         horizontalLayout->addSpacing(30);
-        horizontalLayout->addWidget(sliderPlay);
+        horizontalLayout->addWidget(m_timeSlider);
         horizontalLayout->addSpacing(5);
-        horizontalLayout->addWidget(timePlay);
+        horizontalLayout->addWidget(m_timeLabel);
         horizontalLayout->addSpacing(30);
         horizontalLayout->setContentsMargins(0, 10, 0, 5);
         m_verticalLayout->addLayout(horizontalLayout);
@@ -151,30 +186,93 @@ namespace OpenParticleSystemEditor
         QSpacerItem* spacerFront = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
         QSpacerItem* spacerBack = new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
         QToolBar* toolbar = new QToolBar(this);
-        toolbar->addAction(QIcon(ICON_CIRCULATE), "", [this]()
+        m_loopAction = toolbar->addAction(QIcon(ICON_CIRCULATE), "");
+        m_loopAction->setCheckable(true);
+        m_loopAction->setToolTip(tr("Loop preview: restart a particle that does not loop shortly after it ends"));
+
+        m_playAction = toolbar->addAction(QIcon(ICON_PALY), "", [this]()
         {
-            AZ_UNUSED(this);
+            const AZ::EntityId preview = GetPreviewEntityId();
+            bool playing = false;
+            OpenParticle::ParticleRequestBus::EventResult(playing, preview, &OpenParticle::ParticleRequest::IsPlaying);
+            OpenParticle::ParticleRequestBus::Event(preview, playing ? &OpenParticle::ParticleRequest::Pause : &OpenParticle::ParticleRequest::Play);
+            UpdatePlayerBar();
         });
-        toolbar->addAction(QIcon(ICON_PALY), "", []()
+        m_playAction->setToolTip(tr("Play / Pause"));
+
+        toolbar->addAction(QIcon(ICON_STOP), "", [this]()
         {
-            EBUS_EVENT(OpenParticle::ParticleRequestBus, Play);
-        });
-        toolbar->addAction(QIcon(ICON_STOP), "", []()
-        {
-            EBUS_EVENT(OpenParticle::ParticleRequestBus, Stop);
-        });
+            OpenParticle::ParticleRequestBus::Event(GetPreviewEntityId(), &OpenParticle::ParticleRequest::Stop);
+            UpdatePlayerBar();
+        })->setToolTip(tr("Stop and clear the preview"));
+
         toolbar->addAction(QIcon(ICON_NEXT), "", [this]()
         {
-            AZ_UNUSED(this);
-        });
+            OpenParticle::ParticleRequestBus::Event(GetPreviewEntityId(), &OpenParticle::ParticleRequest::Step, FrameStep);
+            UpdatePlayerBar();
+        })->setToolTip(tr("Pause and step one frame"));
+
         toolbar->addAction(QIcon(ICON_RESET), "", [this]()
         {
-            AZ_UNUSED(this);
-        });
+            OpenParticle::ParticleRequestBus::Event(GetPreviewEntityId(), &OpenParticle::ParticleRequest::SetPlaybackTime, 0.0f);
+            UpdatePlayerBar();
+        })->setToolTip(tr("Restart from the beginning"));
         horizontalBottomLayout->addItem(spacerFront);
         horizontalBottomLayout->addWidget(toolbar);
         horizontalBottomLayout->addItem(spacerBack);
         m_verticalLayout->addLayout(horizontalBottomLayout);
+    }
+
+    AZ::EntityId ViewInspector::GetPreviewEntityId() const
+    {
+        AZ::EntityId preview;
+        OpenParticleSystem::ParticleEditorRequestBus::BroadcastResult(
+            preview, &OpenParticleSystem::ParticleEditorRequestBus::Events::GetPreviewParticleEntityId);
+        return preview;
+    }
+
+    void ViewInspector::UpdatePlayerBar()
+    {
+        const AZ::EntityId preview = GetPreviewEntityId();
+        if (!preview.IsValid() || m_timeSlider == nullptr)
+        {
+            return;
+        }
+
+        bool playing = false;
+        bool looping = false;
+        float time = 0.0f;
+        float duration = 0.0f;
+        OpenParticle::ParticleRequestBus::EventResult(playing, preview, &OpenParticle::ParticleRequest::IsPlaying);
+        OpenParticle::ParticleRequestBus::EventResult(looping, preview, &OpenParticle::ParticleRequest::IsLooping);
+        OpenParticle::ParticleRequestBus::EventResult(time, preview, &OpenParticle::ParticleRequest::GetPlaybackTime);
+        OpenParticle::ParticleRequestBus::EventResult(duration, preview, &OpenParticle::ParticleRequest::GetPlaybackDuration);
+        m_duration = duration;
+
+        if (m_loopAction->isChecked() && playing && !looping && duration > 0.0f && time >= duration + LoopRestartDelay)
+        {
+            OpenParticle::ParticleRequestBus::Event(preview, &OpenParticle::ParticleRequest::SetPlaybackTime, 0.0f);
+            time = 0.0f;
+        }
+
+        // A looping particle shows where it is in its current loop; one that does not loop stops at its end.
+        const float shown = duration <= 0.0f ? 0.0f : (looping ? fmodf(time, duration) : AZStd::min(time, duration));
+        if (!m_timeSlider->isSliderDown())
+        {
+            const QSignalBlocker blocker(m_timeSlider);
+            m_timeSlider->setValue(duration > 0.0f ? static_cast<int>(shown / duration * SliderSteps) : 0);
+        }
+
+        const auto format = [](float seconds)
+        {
+            const int hundredths = static_cast<int>(seconds * 100.0f + 0.5f);
+            return QString("%1:%2:%3")
+                .arg(hundredths / 6000, 2, 10, QChar('0'))
+                .arg((hundredths / 100) % 60, 2, 10, QChar('0'))
+                .arg(hundredths % 100, 2, 10, QChar('0'));
+        };
+        m_timeLabel->setText(QString("%1 / %2").arg(format(shown), format(duration)));
+        m_playAction->setIcon(QIcon(playing ? ICON_PAUSE : ICON_PALY));
     }
 
     void ViewInspector::OnGridEnabledChanged(bool enable)

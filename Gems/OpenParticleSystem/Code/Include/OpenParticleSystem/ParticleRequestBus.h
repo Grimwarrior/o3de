@@ -35,6 +35,24 @@ namespace OpenParticle
         //! \return true if the particle system is visible; false otherwise.
         virtual bool GetVisibility() const = 0;
 
+        //! True while the simulation is playing, false when paused, stopped or not yet started.
+        virtual bool IsPlaying() const = 0;
+
+        //! Seconds the system has played since it last started, at its playback speed.
+        virtual float GetPlaybackTime() const = 0;
+
+        //! Seconds until the last emitter stops emitting, at each emitter's own speed; live particles can outlast it.
+        virtual float GetPlaybackDuration() const = 0;
+
+        //! True when an emitter loops, so the system plays on past its duration.
+        virtual bool IsLooping() const = 0;
+
+        //! Restarts the system and simulates it up to seconds; it keeps playing if it was, otherwise it stays paused there.
+        virtual void SetPlaybackTime(float seconds) = 0;
+
+        //! Pauses the system and simulates seconds more, such as one frame.
+        virtual void Step(float seconds) = 0;
+
         //! Runtime overrides write into the instance's own effector data (no per-particle cost) and survive Stop/Play; emitterIndex -1 means every emitter.
 
         //! Turns emitter looping on or off; a non-looping emitter plays once and Stop then Play replays it.

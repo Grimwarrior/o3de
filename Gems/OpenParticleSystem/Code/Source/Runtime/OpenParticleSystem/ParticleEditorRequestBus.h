@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <AzCore/Component/EntityId.h>
 #include <AzCore/EBus/EBus.h>
 #include <AzCore/Math/Transform.h>
 
@@ -26,6 +27,12 @@ namespace OpenParticleSystem
         using MutexType = AZStd::recursive_mutex;
 
         virtual const CameraTransform& GetParticleEditorCameraTransform() = 0;
+
+        //! The entity playing the Particle Editor's preview.
+        virtual AZ::EntityId GetPreviewParticleEntityId() const
+        {
+            return AZ::EntityId();
+        }
     };
 
     using ParticleEditorRequestBus = AZ::EBus<ParticleEditorRequest>;

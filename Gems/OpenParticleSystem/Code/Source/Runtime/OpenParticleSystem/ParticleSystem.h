@@ -66,6 +66,21 @@ namespace OpenParticle
 
         void Tick(float delta);
 
+        //! Simulates systemSeconds of system time in small steps, ignoring the playback speed; used to seek and to step frames.
+        void Advance(float systemSeconds);
+
+        //! Seconds of system time simulated since the simulation was built.
+        float GetPlayTime() const
+        {
+            return m_playTime;
+        }
+
+        //! Seconds of system time until the last enabled emitter stops emitting, at each emitter's own speed; 0 when none plays.
+        float GetTimelineLength() const;
+
+        //! True when an enabled emitter loops.
+        bool IsLooping() const;
+
         void Render(DriverWrap& driverWrap, const AZ::RPI::FeatureProcessor::RenderPacket& packet);
 
         void ClearAllLightEffects();
@@ -103,6 +118,7 @@ namespace OpenParticle
         void ClearLightEffects(AZ::u32 emitterId);
 
         void Rebuild();
+        void UpdateWorld();
         // Starts loading an emitter's material or model if nothing has yet, and gets OnAssetReady once it is ready
         template<typename AssetType>
         void QueueLoadAndWait(AZ::Data::Asset<AssetType>& asset);
@@ -124,6 +140,7 @@ namespace OpenParticle
         AZ::u32 m_drawOrder = 0; // position of the emitter being drawn in the sorted emitter list
 
         float m_timeScale = 1.0f;
+        float m_playTime = 0.0f;
         bool m_changedDiffuseMap;
         AZStd::unordered_map<AZ::u32, AZ::RPI::MaterialPropertyValue> m_diffuseMapInstances;
         AZStd::unordered_map<AZ::u32, AZStd::vector<AZ::Vector3>> m_boneStreams;

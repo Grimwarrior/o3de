@@ -172,7 +172,24 @@ namespace OpenParticle
                 m_particleInstance->ApplyOverrides(m_overrides);
                 m_overridesDirty.store(false, AZStd::memory_order_relaxed);
             }
-            m_particleInstance->Tick(delta);
+            if (m_advanceDirty.load(AZStd::memory_order_acquire))
+            {
+                float advance = 0.0f;
+                {
+                    AZStd::lock_guard<AZStd::mutex> lock(m_overridesMutex);
+                    advance = m_pendingAdvance;
+                    m_pendingAdvance = 0.0f;
+                    m_advanceDirty.store(false, AZStd::memory_order_relaxed);
+                }
+                m_particleInstance->Advance(advance);
+            }
+            if (delta > 0.0f)
+            {
+                m_particleInstance->Tick(delta);
+            }
+            m_playTime.store(m_particleInstance->GetPlayTime(), AZStd::memory_order_relaxed);
+            m_timelineLength.store(m_particleInstance->GetTimelineLength(), AZStd::memory_order_relaxed);
+            m_looping.store(m_particleInstance->IsLooping(), AZStd::memory_order_relaxed);
         }
     }
 
@@ -307,13 +324,19 @@ namespace OpenParticle
                 AZ_PROFILE_SCOPE(AzRender, "Particle::Simulate() Lambda");
                 for (auto iter = iteratorRange.m_begin; iter != iteratorRange.m_end; ++iter)
                 {
-                    if (!iter->m_visible ||
-                        !iter->m_enable ||
-                        iter->m_status != ParticleStatus::PLAYING)
+                    if (!iter->m_visible || !iter->m_enable)
                     {
                         continue;
                     }
-                    iter->Simulate(deltaTime);
+                    if (iter->m_status == ParticleStatus::PLAYING)
+                    {
+                        iter->Simulate(deltaTime);
+                    }
+                    else if (iter->HasPendingAdvance())
+                    {
+                        // A seek or frame step on a paused or loaded system simulates only the requested time.
+                        iter->Simulate(0.0f);
+                    }
                 }
             };
             AZ::Job* executeGroupJob = aznew AZ::JobFunction<decltype(jobLambda)>(jobLambda, true, nullptr); // Auto-deletes

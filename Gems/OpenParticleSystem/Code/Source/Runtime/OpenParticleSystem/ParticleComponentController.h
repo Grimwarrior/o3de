@@ -55,6 +55,12 @@ namespace OpenParticle
         void Stop() override;
         void SetVisibility(bool visible) override;
         bool GetVisibility() const override;
+        bool IsPlaying() const override;
+        float GetPlaybackTime() const override;
+        float GetPlaybackDuration() const override;
+        bool IsLooping() const override;
+        void SetPlaybackTime(float seconds) override;
+        void Step(float seconds) override;
         void SetLooping(int emitterIndex, bool loop) override;
         void SetSpawnRate(int emitterIndex, float particlesPerSecond) override;
         void SetLifetime(int emitterIndex, float seconds) override;

@@ -25,6 +25,10 @@
 #include <QToolButton>
 #include <LightingPresetMenu.h>
 
+class QLabel;
+class QSlider;
+class QTimer;
+
 namespace OpenParticleSystemEditor
 {
     class ViewInspector
@@ -47,6 +51,10 @@ namespace OpenParticleSystemEditor
         void CreatePlayerProgressBar();
         void CreatePlayerAction();
 
+        //! The player bar drives only the Particle Editor's preview entity, never particles in the level.
+        AZ::EntityId GetPreviewEntityId() const;
+        void UpdatePlayerBar();
+
         // OpenParticleViewportNotificationBus::Handler overrides...
         void OnGridEnabledChanged([[maybe_unused]] bool enable) override;
         void OnAlternateSkyboxEnabledChanged([[maybe_unused]] bool enable) override;
@@ -58,5 +66,13 @@ namespace OpenParticleSystemEditor
         AZStd::unordered_map<AZ::Render::DisplayMapperOperationType, QAction*> m_operationActions;
         QToolButton* m_skyBtn;
         QVBoxLayout* m_verticalLayout = nullptr;
+
+        QSlider* m_timeSlider = nullptr;
+        QLabel* m_timeLabel = nullptr;
+        QAction* m_playAction = nullptr;
+        QAction* m_loopAction = nullptr;
+        QTimer* m_playerTimer = nullptr;
+        float m_duration = 0.0f; // the preview's duration when the bar last updated, which scales the slider
+        bool m_resumeAfterScrub = false;
     };
 } // namespace OpenParticleSystemEditor

@@ -55,6 +55,33 @@ namespace OpenParticle
         void Simulate(float delta);
         void Render(const AZ::RPI::FeatureProcessor::RenderPacket& packet);
 
+        //! Queues systemSeconds to simulate on the next Simulate, which runs for it even while paused.
+        void RequestAdvance(float systemSeconds)
+        {
+            AZStd::lock_guard<AZStd::mutex> lock(m_overridesMutex);
+            m_pendingAdvance += systemSeconds;
+            m_advanceDirty.store(true, AZStd::memory_order_release);
+        }
+
+        bool HasPendingAdvance() const
+        {
+            return m_advanceDirty.load(AZStd::memory_order_acquire);
+        }
+
+        //! Playback state as of the last Simulate, readable from any thread.
+        float GetPlayTime() const
+        {
+            return m_playTime.load(AZStd::memory_order_relaxed);
+        }
+        float GetTimelineLength() const
+        {
+            return m_timelineLength.load(AZStd::memory_order_relaxed);
+        }
+        bool IsLooping() const
+        {
+            return m_looping.load(AZStd::memory_order_relaxed);
+        }
+
         void Init();
 
         void LoadParticle(const AZ::Data::Asset<ParticleAsset>& asset, ParticleFeatureProcessor& fp);
@@ -88,6 +115,11 @@ namespace OpenParticle
         ParticleOverrides m_overrides;
         AZStd::mutex m_overridesMutex;
         AZStd::atomic<bool> m_overridesDirty{ false };
+        float m_pendingAdvance = 0.0f; // guarded by m_overridesMutex
+        AZStd::atomic<bool> m_advanceDirty{ false };
+        AZStd::atomic<float> m_playTime{ 0.0f };
+        AZStd::atomic<float> m_timelineLength{ 0.0f };
+        AZStd::atomic<bool> m_looping{ false };
     };
 
     //! Frames the distortion passes stay on after the last distortion draw, so a burst of slashes doesn't rebuild the pipeline each time.

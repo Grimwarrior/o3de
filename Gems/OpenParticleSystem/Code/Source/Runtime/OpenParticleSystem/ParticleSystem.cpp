@@ -142,6 +142,7 @@ namespace OpenParticle
     {
         m_particleSystem = AZStd::make_unique<SimuCore::ParticleCore::ParticleSystem>();
         m_overrideCurves.clear();
+        m_playTime = 0.0f;
         m_asset->GetParticleArchive() << *m_particleSystem;
         m_particleSystem->Play();
 
@@ -171,13 +172,8 @@ namespace OpenParticle
         }
     }
 
-    void ParticleSystem::Tick(float delta)
+    void ParticleSystem::UpdateWorld()
     {
-        if (!m_particleSystem || m_particleSystem->GetAllEmitters().size() == 0)
-        {
-            return;
-        }
-
         OpenParticleSystem::CameraTransform cameraTransform;
         if (!m_rtConfig.m_inParticleEditor)
         {
@@ -200,8 +196,70 @@ namespace OpenParticle
         m_particleSystem->UpdateWorldInfo(cameraTransform.m_transform,
                                           m_rtConfig.m_followActiveCamera ? m_rtSysTransform : m_transform,
                                           -AZ::Vector3::CreateAxisY());
+    }
 
+    void ParticleSystem::Advance(float systemSeconds)
+    {
+        if (!m_particleSystem || m_particleSystem->GetAllEmitters().size() == 0)
+        {
+            return;
+        }
+
+        UpdateWorld();
+        // Steps of a 30 Hz frame keep spawning and lifetimes close to what normal playback would have produced.
+        constexpr float step = 1.0f / 30.0f;
+        for (float remaining = systemSeconds; remaining > 0.0f; remaining -= step)
+        {
+            const float delta = AZStd::min(step, remaining);
+            m_particleSystem->Simulate(delta);
+            m_playTime += delta;
+        }
+    }
+
+    float ParticleSystem::GetTimelineLength() const
+    {
+        float length = 0.0f;
+        if (m_particleSystem)
+        {
+            for (const auto& [emitterId, emitter] : m_particleSystem->GetAllEmitters())
+            {
+                const auto* config = emitter->GetEmitterConfig();
+                if (config == nullptr || config->disabled || config->playbackSpeed <= 0.0f)
+                {
+                    continue;
+                }
+                length = AZStd::max(length, (config->startTime + config->duration) / config->playbackSpeed);
+            }
+        }
+        return length;
+    }
+
+    bool ParticleSystem::IsLooping() const
+    {
+        if (m_particleSystem)
+        {
+            for (const auto& [emitterId, emitter] : m_particleSystem->GetAllEmitters())
+            {
+                const auto* config = emitter->GetEmitterConfig();
+                if (config != nullptr && !config->disabled && config->loop)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    void ParticleSystem::Tick(float delta)
+    {
+        if (!m_particleSystem || m_particleSystem->GetAllEmitters().size() == 0)
+        {
+            return;
+        }
+
+        UpdateWorld();
         m_particleSystem->Simulate(delta * m_timeScale);
+        m_playTime += delta * m_timeScale;
 
         if (m_changedDiffuseMap)
         {
