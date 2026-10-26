@@ -40,6 +40,10 @@
 
 #define MAX_EMITTER_WIDGET_NUM 10
 
+// Small enough that the pane docked at the bottom of the Editor leaves room for the Editor's own status bar; the docks only
+// need to stay grabbable. Preview over Level Of Detail used to add up to a 600 px minimum height.
+static const QSize DockMinimumSize(160, 100);
+
 void QInitResourceOpenParticleEditor() { Q_INIT_RESOURCE(OpenParticleEditor); }
 void QCleanupResourceOpenParticleEditor() { Q_CLEANUP_RESOURCE(OpenParticleEditor); }
 
@@ -144,7 +148,7 @@ namespace OpenParticleSystemEditor
         auto dockWidget = new AzQtComponents::StyledDockWidget(tr(name.c_str()));
         dockWidget->setObjectName(QString("%1_DockWidget").arg(name.c_str()));
         dockWidget->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-        dockWidget->setMinimumSize(QSize(300, 300));
+        dockWidget->setMinimumSize(DockMinimumSize);
         widget->setObjectName(tr(name.c_str()));
         widget->setParent(dockWidget);
         dockWidget->setWidget(widget);
