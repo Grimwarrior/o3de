@@ -22,6 +22,7 @@
 #include <AzQtComponents/Components/StyledDockWidget.h>
 #include <AzQtComponents/Components/FancyDocking.h>
 #include <AzQtComponents/Components/DockMainWindow.h>
+#include <AzToolsFramework/ActionManager/ActionManagerRegistrationNotificationBus.h>
 
 namespace OpenParticleSystemEditor
 {
@@ -30,6 +31,7 @@ namespace OpenParticleSystemEditor
         : public AzQtComponents::DockMainWindow
         , public EditorWindowRequestsBus::Handler
         , public OpenParticle::EditorParticleOpenParticleRequestsBus::Handler
+        , private AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler
     {
         Q_OBJECT
     public:
@@ -40,6 +42,12 @@ namespace OpenParticleSystemEditor
 
     private:
         void SetupMenu();
+
+        //! Adds the File menu and joins the action context its hotkeys use; false while the Action Manager has not registered them.
+        bool AttachActionManagerItems();
+
+        // AzToolsFramework::ActionManagerRegistrationNotificationBus
+        void OnPostActionManagerRegistrationHook() override;
         void SetupDocking();
         void SetupCentral();
         void SetDockWidget(const AZStd::string& name, QWidget* widget);

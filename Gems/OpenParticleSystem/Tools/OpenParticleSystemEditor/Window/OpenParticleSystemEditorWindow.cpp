@@ -72,12 +72,17 @@ namespace OpenParticleSystemEditor
         SetGradientColorBusIDName();
         RegisterGradientColorPropertyHandler();
 
-        // Lets the Particle Editor's File hotkeys fire while it has focus, even where they match the Editor's own
-        AzToolsFramework::AssignWidgetToActionContextHelper(AZStd::string(ActionIdentifiers::ParticleEditorActionContext), this);
+        // A pane restored with the Editor's layout is built before the Action Manager registers the File menu and the action
+        // context, so in that case they are attached once registration has finished.
+        if (!AttachActionManagerItems())
+        {
+            AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler::BusConnect();
+        }
     }
 
     OpenParticleSystemEditorWindow::~OpenParticleSystemEditorWindow()
     {
+        AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler::BusDisconnect();
         AzToolsFramework::RemoveWidgetFromActionContextHelper(AZStd::string(ActionIdentifiers::ParticleEditorActionContext), this);
         EditorWindowRequestsBus::Handler::BusDisconnect();
         OpenParticle::EditorParticleOpenParticleRequestsBus::Handler::BusDisconnect();
@@ -91,21 +96,34 @@ namespace OpenParticleSystemEditor
         m_menuBar = new QMenuBar(this);
         setMenuBar(m_menuBar);
 
-        // The File menu and its actions are registered with the Action Manager (OpenParticleSystemEditorSystemComponent); the menu bar only shows them
-        if (auto menuManagerInternalInterface = AZ::Interface<AzToolsFramework::MenuManagerInternalInterface>::Get())
+        // File goes in front of View once AttachActionManagerItems finds it
+        m_menuView = m_menuBar->addMenu(QCoreApplication::translate("OpenParticleSystemEditorWindow", "&View"));
+    }
+
+    // The File menu and its actions are registered with the Action Manager (OpenParticleSystemEditorSystemComponent); the menu bar only
+    // shows them, and joining the action context lets the File hotkeys fire while the window has focus, even where they match the Editor's.
+    bool OpenParticleSystemEditorWindow::AttachActionManagerItems()
+    {
+        auto menuManagerInternalInterface = AZ::Interface<AzToolsFramework::MenuManagerInternalInterface>::Get();
+        QMenu* fileMenu =
+            menuManagerInternalInterface ? menuManagerInternalInterface->GetMenu(AZStd::string(ActionIdentifiers::FileMenu)) : nullptr;
+        if (fileMenu == nullptr)
         {
-            m_menuFile = menuManagerInternalInterface->GetMenu(AZStd::string(ActionIdentifiers::FileMenu));
-        }
-        if (m_menuFile)
-        {
-            m_menuBar->addMenu(m_menuFile);
-        }
-        else
-        {
-            AZ_Warning("OpenParticleSystemEditor", false, "Particle Editor File menu %.*s is not registered", AZ_STRING_ARG(ActionIdentifiers::FileMenu));
+            return false;
         }
 
-        m_menuView = m_menuBar->addMenu(QCoreApplication::translate("OpenParticleSystemEditorWindow", "&View"));
+        m_menuFile = fileMenu;
+        m_menuBar->insertMenu(m_menuView->menuAction(), m_menuFile);
+        AzToolsFramework::AssignWidgetToActionContextHelper(AZStd::string(ActionIdentifiers::ParticleEditorActionContext), this);
+        return true;
+    }
+
+    void OpenParticleSystemEditorWindow::OnPostActionManagerRegistrationHook()
+    {
+        AzToolsFramework::ActionManagerRegistrationNotificationBus::Handler::BusDisconnect();
+        [[maybe_unused]] const bool attached = AttachActionManagerItems();
+        AZ_Warning(
+            "OpenParticleSystemEditor", attached, "Particle Editor File menu %.*s is not registered", AZ_STRING_ARG(ActionIdentifiers::FileMenu));
     }
 
     void OpenParticleSystemEditorWindow::SetupCentral()
