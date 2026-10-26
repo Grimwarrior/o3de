@@ -48,6 +48,13 @@ namespace OpenParticleSystemEditor
         void SaveAllViewItemPos();
         void ReadAllViewItemPos(AZStd::string particleAssetPath);
         void SortAllItem(QList<QGraphicsItem*> remainItemList);
+
+        //! Every emitter card in the scene, wherever it sits; a query by the scene rectangle misses a card placed outside it.
+        QList<QGraphicsItem*> GetCardItems() const;
+
+        //! Position of the card at index in a grid from origin that wraps before the scene's right edge, so no card lands
+        //! where it can't be scrolled to.
+        QPointF GridPosition(const QPointF& origin, unsigned index, qreal cardWidth, qreal cardHeight) const;
         void SetEBusId(QString windowTitle);
 
     protected:

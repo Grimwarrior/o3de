@@ -19,6 +19,9 @@
 
 namespace OpenParticleSystemEditor
 {
+    // Vertical space between rows of emitter cards placed in a grid.
+    static constexpr qreal CardRowGap = 40.0;
+
     const float VIEW_DRAG_IGNORE = 0.005f;
     const float VIEW_WHEEL_SCALE = 0.00125f;
     ParticleGraphicsView::ParticleGraphicsView(QWidget* parent)
@@ -190,7 +193,7 @@ namespace OpenParticleSystemEditor
 
     void ParticleGraphicsView::SetItemSelected() const
     {
-        for (auto& item : this->scene()->items(sceneRect()))
+        for (auto& item : GetCardItems())
         {
             QGraphicsProxyWidget* itemProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(item);
             if (itemProxyWidget != nullptr)
@@ -206,7 +209,7 @@ namespace OpenParticleSystemEditor
 
     void ParticleGraphicsView::SetItemZValue() const
     {
-        for (auto& item : this->scene()->items(sceneRect()))
+        for (auto& item : GetCardItems())
         {
             QGraphicsProxyWidget* itemProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(item);
             if (itemProxyWidget != nullptr)
@@ -292,7 +295,7 @@ namespace OpenParticleSystemEditor
         else
         {
             vecScene = MapToScene(QPointToVector(QPoint(0, 0)));
-            item->setPos(vecScene.GetX() + itemWidget->width() * m_itemCount, vecScene.GetY());
+            item->setPos(GridPosition(QPointF(vecScene.GetX(), vecScene.GetY()), m_itemCount, itemWidget->width(), itemWidget->height()));
 
             if (itemName.size() > 0)
             {
@@ -567,7 +570,7 @@ namespace OpenParticleSystemEditor
         AZStd::vector<AZStd::pair<float, AZStd::string>> itemsInfo;
 
         m_afterSortList.clear();
-        SortAllItem(this->scene()->items(sceneRect()));
+        SortAllItem(GetCardItems());
 
         for (const auto& item : m_afterSortList)
         {
@@ -607,7 +610,7 @@ namespace OpenParticleSystemEditor
         };
 
         size_t len = name.length();
-        for (const auto& item : this->scene()->items(sceneRect()))
+        for (const auto& item : GetCardItems())
         {
             QGraphicsProxyWidget* itemProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(item);
             if (itemProxyWidget == nullptr) {
@@ -676,7 +679,7 @@ namespace OpenParticleSystemEditor
     AZStd::unordered_map<AZStd::string, ParticleItemWidget*> ParticleGraphicsView::GetAllParticleItemWidgets()
     {
         AZStd::unordered_map<AZStd::string, ParticleItemWidget*> widgets;
-        for (const auto& item : this->scene()->items(sceneRect()))
+        for (const auto& item : GetCardItems())
         {
             QGraphicsProxyWidget* itemProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(item);
             if (itemProxyWidget != nullptr)
@@ -703,7 +706,7 @@ namespace OpenParticleSystemEditor
     bool ParticleGraphicsView::PointOnItem(QPoint pt)
     {
         QPointF scenePt = this->mapToScene(pt);
-        for (const auto& item : this->scene()->items(sceneRect()))
+        for (const auto& item : GetCardItems())
         {
             QGraphicsProxyWidget* itemProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(item);
             if (itemProxyWidget != nullptr)
@@ -728,7 +731,7 @@ namespace OpenParticleSystemEditor
     
     void ParticleGraphicsView::PositionAllItems()
     {
-        auto itemList = scene()->items(sceneRect());
+        auto itemList = GetCardItems();
         AZStd::sort(itemList.begin(), itemList.end(), [](const auto& first, const auto& second)
             {
                 QGraphicsProxyWidget* firstProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(first);
@@ -743,14 +746,14 @@ namespace OpenParticleSystemEditor
         {
             itemProxyWidget = dynamic_cast<QGraphicsProxyWidget*>(item);
             itemWidget = dynamic_cast<ParticleItemWidget*>(itemProxyWidget->widget());
-            item->setPos(vecScene.GetX() + index * itemWidget->width(), vecScene.GetY());
+            item->setPos(GridPosition(QPointF(vecScene.GetX(), vecScene.GetY()), index, itemWidget->width(), itemWidget->height()));
             index++;
         }
     }
 
     void ParticleGraphicsView::SaveAllViewItemPos()
     {
-        auto itemList = scene()->items(sceneRect());
+        auto itemList = GetCardItems();
         m_afterSortList.clear();
         SortAllItem(itemList);
 
@@ -771,6 +774,31 @@ namespace OpenParticleSystemEditor
             saveInFile << itemY;
         }
         particleLayoutSettings.close();
+    }
+
+    QList<QGraphicsItem*> ParticleGraphicsView::GetCardItems() const
+    {
+        QList<QGraphicsItem*> cards;
+        for (QGraphicsItem* item : scene()->items())
+        {
+            if (item->parentItem() != nullptr)
+            {
+                continue;
+            }
+            const auto* proxy = dynamic_cast<QGraphicsProxyWidget*>(item);
+            if (proxy != nullptr && dynamic_cast<ParticleItemWidget*>(proxy->widget()) != nullptr)
+            {
+                cards.append(item);
+            }
+        }
+        return cards;
+    }
+
+    QPointF ParticleGraphicsView::GridPosition(const QPointF& origin, unsigned index, qreal cardWidth, qreal cardHeight) const
+    {
+        const qreal usableWidth = scene()->sceneRect().right() - origin.x();
+        const unsigned columns = (cardWidth > 0.0 && usableWidth >= cardWidth) ? static_cast<unsigned>(usableWidth / cardWidth) : 1u;
+        return QPointF(origin.x() + (index % columns) * cardWidth, origin.y() + (index / columns) * (cardHeight + CardRowGap));
     }
 
     void ParticleGraphicsView::SortAllItem(QList<QGraphicsItem*> remainItemList)
@@ -831,7 +859,7 @@ namespace OpenParticleSystemEditor
     {
         m_particleAssetPath = QString::fromStdString(particleAssetPath.c_str());
         m_particleAssetPath.append("layout");
-        auto itemList = scene()->items(sceneRect());
+        auto itemList = GetCardItems();
         m_afterSortList.clear();
         SortAllItem(itemList);
 
@@ -850,7 +878,9 @@ namespace OpenParticleSystemEditor
         }
         QDataStream readFromFile(&particleLayoutSettings);
         QList<QGraphicsItem*> unplacedItems;
+        qreal leftEdge = 0.0;
         qreal rightEdge = 0.0;
+        qreal bottomEdge = 0.0;
         qreal rowY = 0.0;
         bool anyPlaced = false;
         for (const auto& item : m_afterSortList)
@@ -863,24 +893,37 @@ namespace OpenParticleSystemEditor
                 continue;
             }
             item->setPos(itemX, itemY);
-            rightEdge = anyPlaced ? AZStd::max(rightEdge, itemX + item->boundingRect().width()) : itemX + item->boundingRect().width();
+            const qreal itemRight = itemX + item->boundingRect().width();
+            const qreal itemBottom = itemY + item->boundingRect().height();
+            leftEdge = anyPlaced ? AZStd::min(leftEdge, static_cast<qreal>(itemX)) : itemX;
+            rightEdge = anyPlaced ? AZStd::max(rightEdge, itemRight) : itemRight;
+            bottomEdge = anyPlaced ? AZStd::max(bottomEdge, itemBottom) : itemBottom;
             rowY = anyPlaced ? rowY : itemY;
             anyPlaced = true;
         }
         particleLayoutSettings.close();
 
-        // Emitters added since the layout was saved go in a row to the right of the saved cards
+        // Emitters added since the layout was saved go in a row to the right of the saved cards, and below them once that row
+        // would leave the scene
+        const qreal sceneRight = scene()->sceneRect().right();
         for (const auto& item : unplacedItems)
         {
+            const qreal width = item->boundingRect().width();
+            if (rightEdge + width > sceneRight)
+            {
+                rightEdge = leftEdge;
+                rowY = bottomEdge + CardRowGap;
+            }
             item->setPos(rightEdge, rowY);
-            rightEdge += item->boundingRect().width();
+            rightEdge += width;
+            bottomEdge = AZStd::max(bottomEdge, rowY + item->boundingRect().height());
         }
         ResetCenter();
     }
 
     void ParticleGraphicsView::ResetCenter()
     {
-        auto itemList = scene()->items(sceneRect());
+        auto itemList = GetCardItems();
         AZ::s32 viewX = 0;
         AZ::s32 viewY = 0;
         AZ::s32 index = 0;
