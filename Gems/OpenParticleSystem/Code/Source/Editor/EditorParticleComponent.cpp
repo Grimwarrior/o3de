@@ -63,6 +63,11 @@ namespace OpenParticle
                     ->DataElement(AZ::Edit::UIHandlers::Default, &ParticleComponentConfig::m_overrides, QT_TRANSLATE_NOOP("OpenParticleSystem", "Overrides"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Values that replace the asset's values for this entity only; the .particle file is not changed"));
 
+                editContext->Enum<ColorOverLifeOverrideMode>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Color Over Lifetime Mode"), "")
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient"), ColorOverLifeOverrideMode::Gradient)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Random Between Two Colors"), ColorOverLifeOverrideMode::RandomColors)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Random Between Two Gradients"), ColorOverLifeOverrideMode::RandomGradients);
+
                 editContext->Enum<LoopOverride>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Loop Override"), "")
                     ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Use asset"), LoopOverride::Asset)
                     ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "On"), LoopOverride::On)
@@ -134,12 +139,31 @@ namespace OpenParticle
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the colour and alpha gradient over each particle's life; "
                             "only applies to emitters that have the Color Over Lifetime module"))
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
+                    ->DataElement(AZ::Edit::UIHandlers::ComboBox, &EmitterOverrideSettings::m_colorOverLifeMode, QT_TRANSLATE_NOOP("OpenParticleSystem", "Mode"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient: every particle follows the keys. Random Between Two Colors: each particle keeps "
+                            "one colour between Color A and Color B. Random Between Two Gradients: each particle follows its own blend of Keys "
+                            "and Second Keys. A particle's blend is fixed for its life."))
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::ShowsColorOverLifeMode)
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
                     ->DataElement(AZ_CRC_CE("ParticleColorKeyGradient"), &EmitterOverrideSettings::m_colorOverLife, QT_TRANSLATE_NOOP("OpenParticleSystem", "Keys"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient stops; the first key holds before its time and the last after. "
                             "Click the gradient to edit the keys in the gradient editor"))
-                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::m_overrideColorOverLife)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::ShowsColorKeys)
                         ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
                         ->Attribute(AZ::Edit::Attributes::IndexedChildNameLabelOverride, &EmitterOverrideSettings::GetColorKeyLabel)
+                    ->DataElement(AZ_CRC_CE("ParticleColorKeyGradient"), &EmitterOverrideSettings::m_secondColorOverLife, QT_TRANSLATE_NOOP("OpenParticleSystem", "Second Keys"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "The other gradient; each particle blends between the two by its own fixed amount"))
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::ShowsSecondColorKeys)
+                        ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+                        ->Attribute(AZ::Edit::Attributes::IndexedChildNameLabelOverride, &EmitterOverrideSettings::GetSecondColorKeyLabel)
+                    ->DataElement(AZ::Edit::UIHandlers::Color, &EmitterOverrideSettings::m_randomColorA, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color A"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "One end of the range each particle's colour is picked from"))
+                        ->Attribute("AlphaChannel", true)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::ShowsRandomColors)
+                    ->DataElement(AZ::Edit::UIHandlers::Color, &EmitterOverrideSettings::m_randomColorB, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color B"),
+                            QT_TRANSLATE_NOOP("OpenParticleSystem", "The other end of the range each particle's colour is picked from"))
+                        ->Attribute("AlphaChannel", true)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &EmitterOverrideSettings::ShowsRandomColors)
                     ->DataElement(AZ::Edit::UIHandlers::CheckBox, &EmitterOverrideSettings::m_overrideForce, QT_TRANSLATE_NOOP("OpenParticleSystem", "Force"),
                             QT_TRANSLATE_NOOP("OpenParticleSystem", "Override the emitter's constant force such as gravity or wind"))
                         ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
@@ -323,9 +347,13 @@ namespace OpenParticle
             {
                 settings.m_color = *asset.m_color;
             }
-            if (!settings.m_overrideColorOverLife && !asset.m_colorOverLife.empty())
+            if (!settings.m_overrideColorOverLife && asset.m_hasColorOverLife)
             {
+                settings.m_colorOverLifeMode = asset.m_colorOverLifeMode;
                 settings.m_colorOverLife = asset.m_colorOverLife;
+                settings.m_secondColorOverLife = asset.m_secondColorOverLife;
+                settings.m_randomColorA = asset.m_randomColorA;
+                settings.m_randomColorB = asset.m_randomColorB;
             }
             if (!settings.m_overrideForce && asset.m_force)
             {
@@ -350,9 +378,14 @@ namespace OpenParticle
                 first.m_color = first.m_color ? first.m_color : emitter.m_color;
                 first.m_force = first.m_force ? first.m_force : emitter.m_force;
                 first.m_flipbookFps = first.m_flipbookFps ? first.m_flipbookFps : emitter.m_flipbookFps;
-                if (first.m_colorOverLife.empty())
+                if (!first.m_hasColorOverLife && emitter.m_hasColorOverLife)
                 {
+                    first.m_hasColorOverLife = true;
+                    first.m_colorOverLifeMode = emitter.m_colorOverLifeMode;
                     first.m_colorOverLife = emitter.m_colorOverLife;
+                    first.m_secondColorOverLife = emitter.m_secondColorOverLife;
+                    first.m_randomColorA = emitter.m_randomColorA;
+                    first.m_randomColorB = emitter.m_randomColorB;
                 }
             }
             return first;

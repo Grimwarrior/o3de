@@ -50,6 +50,7 @@ namespace AZ
 
     AZ_TYPE_INFO_SPECIALIZE(SimuCore::ParticleCore::Axis, "{fb406d4a-ad90-400b-986b-a876e4ac67db}");
     AZ_TYPE_INFO_SPECIALIZE(SimuCore::ParticleCore::SimulateType, "{503769fe-05d3-4822-9f2c-a1332905898a}");
+    AZ_TYPE_INFO_SPECIALIZE(SimuCore::ParticleCore::ColorOverLifeMode, "{76772098-8DAB-414A-AD3D-3D945841F7DF}");
     AZ_TYPE_INFO_SPECIALIZE(SimuCore::ParticleCore::MeshSampleType, "{c9ce5b97-29d3-41e1-ad72-2a732019d9f1}");
     AZ_TYPE_INFO_SPECIALIZE(SimuCore::ParticleCore::ParticleSystem::PreWarm, "{7c91c584-ee7d-4646-80a2-9eafae63de5b}");
     AZ_TYPE_INFO_SPECIALIZE(SimuCore::ParticleCore::ParticleSystem::Config, "{5d52a668-8fce-4e0f-a265-312f6d7b8427}");

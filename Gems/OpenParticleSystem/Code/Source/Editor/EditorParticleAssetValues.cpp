@@ -291,6 +291,31 @@ namespace OpenParticle
             return gradient;
         }
 
+        // AZ::Color is stored as an array of four numbers.
+        AZ::Color ReadColorArray(const JsonValue* value, const AZ::Color& fallback)
+        {
+            if (value == nullptr || !value->IsArray() || value->Size() < 4)
+            {
+                return fallback;
+            }
+            return AZ::Color(
+                ReadFloat(&(*value)[0], fallback.GetR()), ReadFloat(&(*value)[1], fallback.GetG()), ReadFloat(&(*value)[2], fallback.GetB()),
+                ReadFloat(&(*value)[3], fallback.GetA()));
+        }
+
+        ColorOverLifeOverrideMode ToOverrideMode(AZStd::string_view mode)
+        {
+            if (mode == "RandomColors")
+            {
+                return ColorOverLifeOverrideMode::RandomColors;
+            }
+            if (mode == "RandomGradients")
+            {
+                return ColorOverLifeOverrideMode::RandomGradients;
+            }
+            return ColorOverLifeOverrideMode::Gradient;
+        }
+
         EmitterAssetValues ReadEmitter(const JsonValue& emitter, const SourceDistributions& distributions)
         {
             EmitterAssetValues values;
@@ -320,9 +345,21 @@ namespace OpenParticle
                     values.m_flipbookFps = fps->GetFloat();
                 }
             }
-            if (const JsonValue* object = FindValueObject(emitter, "OpenParticle::UpdateColor", "currentColorObject"))
+            if (const JsonValue* updateColor = FindMember(emitter, "OpenParticle::UpdateColor"))
             {
-                values.m_colorOverLife = ReadColorGradient(*object, distributions);
+                values.m_hasColorOverLife = true;
+                // Files from before the mode play the gradient.
+                values.m_colorOverLifeMode = ToOverrideMode(ReadString(FindMember(*updateColor, "mode")));
+                if (const JsonValue* object = FindMember(*updateColor, "currentColorObject"))
+                {
+                    values.m_colorOverLife = ReadColorGradient(*object, distributions);
+                }
+                if (const JsonValue* object = FindMember(*updateColor, "secondColorObject"))
+                {
+                    values.m_secondColorOverLife = ReadColorGradient(*object, distributions);
+                }
+                values.m_randomColorA = ReadColorArray(FindMember(*updateColor, "randomColorA"), values.m_randomColorA);
+                values.m_randomColorB = ReadColorArray(FindMember(*updateColor, "randomColorB"), values.m_randomColorB);
             }
             if (const JsonValue* object = FindValueObject(emitter, "OpenParticle::SpawnColor", "startColorObject"))
             {

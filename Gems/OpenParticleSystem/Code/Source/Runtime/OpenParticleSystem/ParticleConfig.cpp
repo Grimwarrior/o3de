@@ -49,6 +49,11 @@ namespace OpenParticle
                 ->Value("CPU", SimuCore::ParticleCore::SimulateType::CPU)
                 ->Value("GPU", SimuCore::ParticleCore::SimulateType::GPU);
 
+            serializeContext->Enum<SimuCore::ParticleCore::ColorOverLifeMode>()
+                ->Value("Gradient", SimuCore::ParticleCore::ColorOverLifeMode::GRADIENT)
+                ->Value("RandomColors", SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_COLORS)
+                ->Value("RandomGradients", SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_GRADIENTS);
+
             serializeContext->Class<SimuCore::ParticleCore::SingleBurst>()
                 ->Version(0)
                 ->Field("time", &SimuCore::ParticleCore::SingleBurst::time)
@@ -250,7 +255,11 @@ namespace OpenParticle
 
             serializeContext->Class<SimuCore::ParticleCore::UpdateColor>()
                 ->Version(0)
-                ->Field("currentColor", &SimuCore::ParticleCore::UpdateColor::currentColor);
+                ->Field("currentColor", &SimuCore::ParticleCore::UpdateColor::currentColor)
+                ->Field("secondColor", &SimuCore::ParticleCore::UpdateColor::secondColor)
+                ->Field("randomColorA", &SimuCore::ParticleCore::UpdateColor::randomColorA)
+                ->Field("randomColorB", &SimuCore::ParticleCore::UpdateColor::randomColorB)
+                ->Field("mode", &SimuCore::ParticleCore::UpdateColor::mode);
 
             serializeContext->Class<SimuCore::ParticleCore::UpdateLocationEvent>()
                 ->Version(0)
@@ -442,6 +451,11 @@ namespace OpenParticle
                 editContext->Enum<SimuCore::ParticleCore::SimulateType>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Simulate Type"), QT_TRANSLATE_NOOP("OpenParticleSystem", "Particle Simulate Type CPU or GPU"))
                     ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "CPU"), SimuCore::ParticleCore::SimulateType::CPU)
                     ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "GPU"), SimuCore::ParticleCore::SimulateType::GPU);
+
+                editContext->Enum<SimuCore::ParticleCore::ColorOverLifeMode>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Color Mode"), "")
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient"), SimuCore::ParticleCore::ColorOverLifeMode::GRADIENT)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Random Between Two Colors"), SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_COLORS)
+                    ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "Random Between Two Gradients"), SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_GRADIENTS);
 
                 editContext->Enum<SimuCore::ParticleCore::Axis>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Axis"), QT_TRANSLATE_NOOP("OpenParticleSystem", "The useful axis of the emitter shape."))
                     ->Value(QT_TRANSLATE_NOOP("OpenParticleSystem", "xPositive"), SimuCore::ParticleCore::Axis::X_POSITIVE)

@@ -333,6 +333,10 @@ namespace OpenParticle
     void DataConvertor::ToRuntime(OpenParticle::UpdateColor& editData, SimuCore::ParticleCore::UpdateColor& runtimeData)
     {
         ConvertValueObjectToRuntime(editData.currentColorObject, runtimeData.currentColor);
+        ConvertValueObjectToRuntime(editData.secondColorObject, runtimeData.secondColor);
+        runtimeData.randomColorA = editData.randomColorA;
+        runtimeData.randomColorB = editData.randomColorB;
+        runtimeData.mode = editData.mode;
     }
 
     void DataConvertor::ToRuntime(OpenParticle::UpdateLocationEvent& editData, SimuCore::ParticleCore::UpdateLocationEvent& runtimeData)
@@ -1188,6 +1192,7 @@ namespace OpenParticle
     void DataConvertor::GetDistIndex(UpdateColor& editData, DistInfos& distInfos)
     {
         GetDistIndexImpl(editData.currentColorObject, distInfos);
+        GetDistIndexImpl(editData.secondColorObject, distInfos);
     }
 
     void DataConvertor::GetDistIndex(UpdateConstForce& editData, DistInfos& distInfos)
@@ -1336,6 +1341,7 @@ namespace OpenParticle
     void DataConvertor::UpdateDistIndex(UpdateColor& editData, DistInfos& distInfos)
     {
         UpdateDistIndexImpl(editData.currentColorObject, distInfos);
+        UpdateDistIndexImpl(editData.secondColorObject, distInfos);
     }
 
     void DataConvertor::UpdateDistIndex(UpdateConstForce& editData, DistInfos& distInfos)
@@ -1453,6 +1459,7 @@ namespace OpenParticle
     void DataConvertor::GetParamId(UpdateColor& editData, AZStd::vector<AZ::TypeId>& paramIds)
     {
         paramIds.emplace_back(editData.currentColorObject.paramName);
+        paramIds.emplace_back(editData.secondColorObject.paramName);
     }
 
     void DataConvertor::GetParamId(UpdateConstForce& editData, AZStd::vector<AZ::TypeId>& paramIds)

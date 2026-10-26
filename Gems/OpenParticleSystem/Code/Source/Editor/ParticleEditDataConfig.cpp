@@ -384,7 +384,11 @@ namespace OpenParticle
                 ->Version(0)
                 ->Attribute("CHECK_PARAM", &CheckParam<OpenParticle::UpdateColor>)
                 ->Attribute("CONVERTOR", &ConvertDistIndexVersion<OpenParticle::UpdateColor>)
-                ->Field("currentColorObject", &OpenParticle::UpdateColor::currentColorObject);
+                ->Field("currentColorObject", &OpenParticle::UpdateColor::currentColorObject)
+                ->Field("mode", &OpenParticle::UpdateColor::mode)
+                ->Field("secondColorObject", &OpenParticle::UpdateColor::secondColorObject)
+                ->Field("randomColorA", &OpenParticle::UpdateColor::randomColorA)
+                ->Field("randomColorB", &OpenParticle::UpdateColor::randomColorB);
 
             serializeContext->Class<OpenParticle::UpdateLocationEvent>()
                 ->Version(0)
@@ -1178,10 +1182,33 @@ namespace OpenParticle
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
                         ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
                         ->Attribute(AZ::Edit::Attributes::Visibility, AZ::Edit::PropertyVisibility::Show)
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::ComboBox, &OpenParticle::UpdateColor::mode, QT_TRANSLATE_NOOP("OpenParticleSystem", "Mode"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Gradient: every particle follows the gradient. Random Between Two Colors: each particle "
+                        "keeps one colour between Color A and Color B. Random Between Two Gradients: each particle follows its own blend of "
+                        "the two gradients. A particle's blend is fixed for its life."))
+                        ->Attribute(AZ::Edit::Attributes::ChangeNotify, AZ::Edit::PropertyRefreshLevels::EntireTree)
                     ->DataElement(AZ_CRC("GradientColor"), &OpenParticle::UpdateColor::currentColorObject,
                         QT_TRANSLATE_NOOP("OpenParticleSystem", "Color"), QT_TRANSLATE_NOOP("OpenParticleSystem", "The color of particles changes with particle life time."))
                         ->Attribute(AZ_CRC("Id"), azrtti_typeid<OpenParticle::UpdateColor>())
-                        ->Attribute(AZ_CRC("ParamId"), AZ::TypeId::CreateName("currentColorObject"));
+                        ->Attribute(AZ_CRC("ParamId"), AZ::TypeId::CreateName("currentColorObject"))
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateColor::ShowsGradient)
+                    ->DataElement(AZ_CRC("GradientColor"), &OpenParticle::UpdateColor::secondColorObject,
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "Second Color"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "The other gradient; each particle blends between the two by its own fixed amount."))
+                        ->Attribute(AZ_CRC("Id"), azrtti_typeid<OpenParticle::UpdateColor>())
+                        ->Attribute(AZ_CRC("ParamId"), AZ::TypeId::CreateName("secondColorObject"))
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateColor::ShowsSecondGradient)
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::Color, &OpenParticle::UpdateColor::randomColorA, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color A"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "One end of the range each particle's colour is picked from."))
+                        ->Attribute("AlphaChannel", true)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateColor::ShowsRandomColors)
+                    ->DataElement(
+                        AZ::Edit::UIHandlers::Color, &OpenParticle::UpdateColor::randomColorB, QT_TRANSLATE_NOOP("OpenParticleSystem", "Color B"),
+                        QT_TRANSLATE_NOOP("OpenParticleSystem", "The other end of the range each particle's colour is picked from."))
+                        ->Attribute("AlphaChannel", true)
+                        ->Attribute(AZ::Edit::Attributes::Visibility, &OpenParticle::UpdateColor::ShowsRandomColors);
 
                 editContext->Class<OpenParticle::UpdateLocationEvent>(QT_TRANSLATE_NOOP("OpenParticleSystem", "Location Event"), "")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")

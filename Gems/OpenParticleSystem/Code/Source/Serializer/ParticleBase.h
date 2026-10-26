@@ -442,7 +442,16 @@ namespace OpenParticle
         void CheckParam();
         void ConvertDistIndexVersion(Distribution& distribution);
 
+        bool ShowsGradient() const { return mode != SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_COLORS; }
+        bool ShowsSecondGradient() const { return mode == SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_GRADIENTS; }
+        bool ShowsRandomColors() const { return mode == SimuCore::ParticleCore::ColorOverLifeMode::RANDOM_COLORS; }
+
+        // The random modes give each particle its own blend, fixed for its life. Files from before the mode load as Gradient.
+        SimuCore::ParticleCore::ColorOverLifeMode mode = SimuCore::ParticleCore::ColorOverLifeMode::GRADIENT;
         ValueObjColor currentColorObject = { "currentColorObject", { 1.f, 1.f, 1.f, 1.f } };
+        ValueObjColor secondColorObject = { "secondColorObject", { 1.f, 1.f, 1.f, 1.f } };
+        AZ::Color randomColorA = AZ::Color(1.f, 1.f, 1.f, 1.f);
+        AZ::Color randomColorB = AZ::Color(0.f, 0.f, 0.f, 1.f);
         AZ::u32 version = 1;
     };
 

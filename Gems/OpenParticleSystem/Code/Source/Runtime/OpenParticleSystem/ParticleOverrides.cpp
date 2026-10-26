@@ -172,13 +172,35 @@ namespace OpenParticle
                 if (auto* data = FindData<Core::UpdateColor>(emitter.GetUpdateEffectors()))
                 {
                     SetColorRgb(data->currentColor, o.m_color.m_value);
+                    // One colour for every particle, so a random mode from the asset would otherwise still mix in others.
+                    data->mode = Core::ColorOverLifeMode::GRADIENT;
                 }
             }
             if (o.m_colorOverLife.m_set)
             {
                 if (auto* data = FindData<Core::UpdateColor>(emitter.GetUpdateEffectors()))
                 {
-                    SetColorCurves(data->currentColor, curves[emitterId], system, o.m_colorOverLife.m_value);
+                    const ColorOverLifeOverride& colorOverLife = o.m_colorOverLife.m_value;
+                    auto& emitterCurves = curves[emitterId];
+                    switch (colorOverLife.m_mode)
+                    {
+                    case ColorOverLifeOverrideMode::RandomColors:
+                        data->mode = Core::ColorOverLifeMode::RANDOM_COLORS;
+                        data->randomColorA = colorOverLife.m_colorA;
+                        data->randomColorB = colorOverLife.m_colorB;
+                        break;
+                    case ColorOverLifeOverrideMode::RandomGradients:
+                        data->mode = Core::ColorOverLifeMode::RANDOM_GRADIENTS;
+                        SetColorCurves(data->currentColor, emitterCurves[0], system, colorOverLife.m_keys);
+                        SetColorCurves(
+                            data->secondColor, emitterCurves[1], system,
+                            colorOverLife.m_secondKeys.empty() ? colorOverLife.m_keys : colorOverLife.m_secondKeys);
+                        break;
+                    default:
+                        data->mode = Core::ColorOverLifeMode::GRADIENT;
+                        SetColorCurves(data->currentColor, emitterCurves[0], system, colorOverLife.m_keys);
+                        break;
+                    }
                 }
             }
             if (o.m_force.m_set)
@@ -289,6 +311,11 @@ namespace OpenParticle
 
         if (auto serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
+            serializeContext->Enum<ColorOverLifeOverrideMode>()
+                ->Value("Gradient", ColorOverLifeOverrideMode::Gradient)
+                ->Value("RandomColors", ColorOverLifeOverrideMode::RandomColors)
+                ->Value("RandomGradients", ColorOverLifeOverrideMode::RandomGradients);
+
             serializeContext->Enum<LoopOverride>()
                 ->Value("Asset", LoopOverride::Asset)
                 ->Value("On", LoopOverride::On)
@@ -310,7 +337,11 @@ namespace OpenParticle
                 ->Field("OverrideColor", &EmitterOverrideSettings::m_overrideColor)
                 ->Field("Color", &EmitterOverrideSettings::m_color)
                 ->Field("OverrideColorOverLife", &EmitterOverrideSettings::m_overrideColorOverLife)
+                ->Field("ColorOverLifeMode", &EmitterOverrideSettings::m_colorOverLifeMode)
                 ->Field("ColorOverLife", &EmitterOverrideSettings::m_colorOverLife)
+                ->Field("SecondColorOverLife", &EmitterOverrideSettings::m_secondColorOverLife)
+                ->Field("RandomColorA", &EmitterOverrideSettings::m_randomColorA)
+                ->Field("RandomColorB", &EmitterOverrideSettings::m_randomColorB)
                 ->Field("OverrideForce", &EmitterOverrideSettings::m_overrideForce)
                 ->Field("Force", &EmitterOverrideSettings::m_force)
                 ->Field("OverrideFlipbookFps", &EmitterOverrideSettings::m_overrideFlipbookFps)
@@ -344,16 +375,27 @@ namespace OpenParticle
         {
             overrides.m_color.Set(m_color);
         }
-        if (m_overrideColorOverLife && !m_colorOverLife.empty())
+        const bool usesKeys = m_colorOverLifeMode != ColorOverLifeOverrideMode::RandomColors;
+        if (m_overrideColorOverLife && (!usesKeys || !m_colorOverLife.empty()))
         {
-            AZStd::vector<ParticleColorKey> keys = m_colorOverLife;
-            for (auto& key : keys)
+            const auto sortedKeys = [](AZStd::vector<ParticleColorKey> keys)
             {
-                key.m_time = AZ::GetClamp(key.m_time, 0.0f, 1.0f);
-            }
-            AZStd::stable_sort(
-                keys.begin(), keys.end(), [](const ParticleColorKey& left, const ParticleColorKey& right) { return left.m_time < right.m_time; });
-            overrides.m_colorOverLife.Set(keys);
+                for (auto& key : keys)
+                {
+                    key.m_time = AZ::GetClamp(key.m_time, 0.0f, 1.0f);
+                }
+                AZStd::stable_sort(
+                    keys.begin(), keys.end(),
+                    [](const ParticleColorKey& left, const ParticleColorKey& right) { return left.m_time < right.m_time; });
+                return keys;
+            };
+            ColorOverLifeOverride colorOverLife;
+            colorOverLife.m_mode = m_colorOverLifeMode;
+            colorOverLife.m_keys = sortedKeys(m_colorOverLife);
+            colorOverLife.m_secondKeys = sortedKeys(m_secondColorOverLife);
+            colorOverLife.m_colorA = m_randomColorA;
+            colorOverLife.m_colorB = m_randomColorB;
+            overrides.m_colorOverLife.Set(colorOverLife);
         }
         if (m_overrideForce)
         {
@@ -436,6 +478,15 @@ namespace OpenParticle
         if (index >= 0 && index < static_cast<int>(m_colorOverLife.size()))
         {
             return AZStd::string::format("Key %d (%.2f)", index + 1, m_colorOverLife[index].m_time);
+        }
+        return AZStd::string::format("Key %d", index + 1);
+    }
+
+    AZStd::string EmitterOverrideSettings::GetSecondColorKeyLabel(int index) const
+    {
+        if (index >= 0 && index < static_cast<int>(m_secondColorOverLife.size()))
+        {
+            return AZStd::string::format("Key %d (%.2f)", index + 1, m_secondColorOverLife[index].m_time);
         }
         return AZStd::string::format("Key %d", index + 1);
     }

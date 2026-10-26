@@ -31,8 +31,13 @@ namespace OpenParticle
         AZStd::optional<AZ::Color> m_color;
         AZStd::optional<AZ::Vector3> m_force;
         AZStd::optional<float> m_flipbookFps;
-        //! Empty when the emitter has no Color Over Lifetime module.
+        //! The Color Over Lifetime module's settings; the rest are only read when m_hasColorOverLife.
+        bool m_hasColorOverLife = false;
+        ColorOverLifeOverrideMode m_colorOverLifeMode = ColorOverLifeOverrideMode::Gradient;
         AZStd::vector<ParticleColorKey> m_colorOverLife;
+        AZStd::vector<ParticleColorKey> m_secondColorOverLife;
+        AZ::Color m_randomColorA = AZ::Color::CreateOne();
+        AZ::Color m_randomColorB = AZ::Color(0.0f, 0.0f, 0.0f, 1.0f);
     };
 
     //! Reads the emitters of the source .particle behind assetId in file order, which is their runtime index.

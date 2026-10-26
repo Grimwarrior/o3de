@@ -63,9 +63,27 @@ namespace OpenParticle
         ColorKeyBlend m_blend = ColorKeyBlend::Linear;
     };
 
-    //! Curves a colour-over-lifetime override added to one simulation, per emitter and channel. The simulation owns them,
-    //! and every later apply rewrites their keys, so they are made once.
-    using OverrideCurves = AZStd::unordered_map<AZ::u32, AZStd::array<SimuCore::ParticleCore::ParticleCurve*, 4>>;
+    //! How a Color Over Lifetime override colours particles; the random modes give each particle its own blend, fixed for its life.
+    enum class ColorOverLifeOverrideMode : AZ::u8
+    {
+        Gradient,
+        RandomColors,
+        RandomGradients
+    };
+
+    //! What a Color Over Lifetime override plays. Keys are sorted by time.
+    struct ColorOverLifeOverride
+    {
+        ColorOverLifeOverrideMode m_mode = ColorOverLifeOverrideMode::Gradient;
+        AZStd::vector<ParticleColorKey> m_keys;
+        AZStd::vector<ParticleColorKey> m_secondKeys;
+        AZ::Color m_colorA = AZ::Color::CreateOne();
+        AZ::Color m_colorB = AZ::Color(0.0f, 0.0f, 0.0f, 1.0f);
+    };
+
+    //! Curves a colour-over-lifetime override added to one simulation, per emitter: the first and second gradient, one curve per
+    //! channel. The simulation owns them, and every later apply rewrites their keys, so they are made once.
+    using OverrideCurves = AZStd::unordered_map<AZ::u32, AZStd::array<AZStd::array<SimuCore::ParticleCore::ParticleCurve*, 4>, 2>>;
 
     struct EmitterOverrides
     {
@@ -78,8 +96,7 @@ namespace OpenParticle
         OverrideValue<AZ::Vector3> m_size;
         OverrideValue<AZ::Vector3> m_force;
         OverrideValue<AZ::Color> m_color;
-        //! Keys sorted by time.
-        OverrideValue<AZStd::vector<ParticleColorKey>> m_colorOverLife;
+        OverrideValue<ColorOverLifeOverride> m_colorOverLife;
     };
 
     //! Script-set values that are written into a particle instance's own effector data, so the per-particle update path is untouched.
@@ -138,7 +155,25 @@ namespace OpenParticle
         static AZStd::vector<ParticleColorKey> DefaultColorOverLife();
 
         AZStd::string GetColorKeyLabel(int index) const;
+        AZStd::string GetSecondColorKeyLabel(int index) const;
         AZ::u32 OnResetPressed();
+
+        bool ShowsColorOverLifeMode() const
+        {
+            return m_overrideColorOverLife;
+        }
+        bool ShowsColorKeys() const
+        {
+            return m_overrideColorOverLife && m_colorOverLifeMode != ColorOverLifeOverrideMode::RandomColors;
+        }
+        bool ShowsSecondColorKeys() const
+        {
+            return m_overrideColorOverLife && m_colorOverLifeMode == ColorOverLifeOverrideMode::RandomGradients;
+        }
+        bool ShowsRandomColors() const
+        {
+            return m_overrideColorOverLife && m_colorOverLifeMode == ColorOverLifeOverrideMode::RandomColors;
+        }
 
         //! Set by the editor component to reset this group with undo; not serialized, and only the Reset button calls it.
         AZStd::function<void()> m_reset;
@@ -160,7 +195,11 @@ namespace OpenParticle
         bool m_overrideColor = false;
         AZ::Color m_color = AZ::Color::CreateOne();
         bool m_overrideColorOverLife = false;
+        ColorOverLifeOverrideMode m_colorOverLifeMode = ColorOverLifeOverrideMode::Gradient;
         AZStd::vector<ParticleColorKey> m_colorOverLife = DefaultColorOverLife();
+        AZStd::vector<ParticleColorKey> m_secondColorOverLife = DefaultColorOverLife();
+        AZ::Color m_randomColorA = AZ::Color::CreateOne();
+        AZ::Color m_randomColorB = AZ::Color(0.0f, 0.0f, 0.0f, 1.0f);
         bool m_overrideForce = false;
         AZ::Vector3 m_force = AZ::Vector3(0.0f, 0.0f, -9.8f);
         bool m_overrideFlipbookFps = false;
@@ -193,4 +232,5 @@ namespace AZ
 {
     AZ_TYPE_INFO_SPECIALIZE(OpenParticle::LoopOverride, "{9888BBD9-10B1-42EF-96B7-C0CE3942686B}");
     AZ_TYPE_INFO_SPECIALIZE(OpenParticle::ColorKeyBlend, "{B2D64A1E-7C39-4F85-A0E3-61C9D8F25B47}");
+    AZ_TYPE_INFO_SPECIALIZE(OpenParticle::ColorOverLifeOverrideMode, "{1F0BD104-29DF-4E6A-AF80-3E7B1E3C2D28}");
 }

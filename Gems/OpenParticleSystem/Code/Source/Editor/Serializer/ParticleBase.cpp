@@ -245,6 +245,7 @@ namespace OpenParticle
     void UpdateColor::CheckParam()
     {
         Clamp(currentColorObject.dataValue, AZ::Color(0.f, 0.f, 0.f, 0.f), AZ::Color(1.f, 1.f, 1.f, 1.f));
+        Clamp(secondColorObject.dataValue, AZ::Color(0.f, 0.f, 0.f, 0.f), AZ::Color(1.f, 1.f, 1.f, 1.f));
     }
 
     void UpdateDragForce::CheckParam()
