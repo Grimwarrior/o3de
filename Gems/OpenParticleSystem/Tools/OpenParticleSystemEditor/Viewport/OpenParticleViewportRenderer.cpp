@@ -384,6 +384,12 @@ namespace OpenParticleSystemEditor
         }
     }
 
+    void OpenParticleViewportRenderer::OnPlaybackSpeedChanged(float speed)
+    {
+        OpenParticle::EditorParticleRequestBus::Event(
+            m_particleEntity->GetId(), &OpenParticle::EditorParticleRequest::SetPreviewPlaybackSpeed, speed);
+    }
+
     void OpenParticleViewportRenderer::OnAlternateSkyboxEnabledChanged(bool enable)
     {
         AZ_UNUSED(enable);

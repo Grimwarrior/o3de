@@ -51,6 +51,9 @@ namespace OpenParticleSystemEditor
 
         //! Notify when tone mapping changes
         virtual void OnDisplayMapperOperationTypeChanged([[maybe_unused]] AZ::Render::DisplayMapperOperationType operationType) {}
+
+        //! Notify when the preview's playback speed changes; 1 is normal speed
+        virtual void OnPlaybackSpeedChanged([[maybe_unused]] float speed) {}
     };
 
     using OpenParticleViewportNotificationBus = AZ::EBus<OpenParticleViewportNotifications>;

@@ -19,6 +19,8 @@ namespace OpenParticle
     public:
         virtual void SetParticleAsset(AZ::Data::Asset<ParticleAsset> particleAsset, bool inParticleEditor) = 0;
         virtual void SetMaterialDiffuseMap(AZ::u32 emitterIndex, AZStd::string mapPath) = 0;
+        //! The Particle Editor preview's playback speed, kept through asset reloads; 1 is normal speed.
+        virtual void SetPreviewPlaybackSpeed(float speed) = 0;
     };
 
     using EditorParticleRequestBus = AZ::EBus<EditorParticleRequest>;

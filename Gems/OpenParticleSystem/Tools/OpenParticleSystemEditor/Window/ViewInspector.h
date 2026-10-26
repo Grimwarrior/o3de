@@ -43,6 +43,7 @@ namespace OpenParticleSystemEditor
 
     private:
         void CreatTopBar();
+        void AddSpeedControl(QHBoxLayout* layout);
         void CreatePlayerProgressBar();
         void CreatePlayerAction();
 

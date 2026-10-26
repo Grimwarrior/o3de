@@ -222,6 +222,16 @@ namespace OpenParticle
         m_controller.SetMaterialDiffuseMap(emitterIndex, mapPath);
     }
 
+    // Written into the authored Playback Speed override, which the controller keeps when the preview's asset is reloaded. Only the
+    // Particle Editor's own preview entity calls this, and that entity is never saved.
+    void EditorParticleComponent::SetPreviewPlaybackSpeed(float speed)
+    {
+        ParticleOverrideSettings& overrides = m_controller.m_configuration.m_overrides;
+        overrides.m_playbackSpeed = AZStd::max(speed, 0.0f);
+        overrides.m_overridePlaybackSpeed = overrides.m_playbackSpeed != 1.0f;
+        m_controller.ApplyAuthoredOverrides();
+    }
+
     AZ::u32 EditorParticleComponent::OnConfigurationChanged()
     {
         const ParticleComponentConfig& config = m_controller.GetConfiguration();

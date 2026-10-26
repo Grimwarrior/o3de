@@ -15,6 +15,8 @@
 #include <QMessageBox>
 #include <QLabel>
 #include <QSlider>
+#include <QDoubleValidator>
+#include <AzCore/std/algorithm.h>
 #include <OpenParticleSystem/ParticleRequestBus.h>
 #include <QAbstractItemView>
 #include <Viewport/OpenParticleViewportRequestBus.h>
@@ -28,6 +30,7 @@ namespace OpenParticleSystemEditor
     static const char* ICON_STOP = ":/stylesheet/img/UI20/toolbar/Deploy.svg";
     static const char* ICON_NEXT = ":/Breadcrumb/img/UI20/Breadcrumb/arrow_right-default_hover.svg";
     static const char* ICON_RESET = ":/stylesheet/img/logging/reset.svg";
+    static constexpr float MaxPreviewSpeed = 10.0f;
 
     ViewInspector::ViewInspector(QWidget* parent)
         : QWidget(parent)
@@ -94,27 +97,46 @@ namespace OpenParticleSystemEditor
         m_skyBtn->setPopupMode(QToolButton::InstantPopup);
 
         horizontalTopLayout->addItem(spacerTopFront);
+        AddSpeedControl(horizontalTopLayout);
         horizontalTopLayout->addWidget(topBar);
         horizontalTopLayout->addWidget(m_skyBtn);
         m_verticalLayout->addLayout(horizontalTopLayout);
     }
 
+    // The player bar below is only built in release-revision builds, so the speed control lives in the top bar.
+    void ViewInspector::AddSpeedControl(QHBoxLayout* layout)
+    {
+        QLabel* labelSpeed = new QLabel(tr("Speed"), this);
+        QLineEdit* lineEditSpeedVal = new QLineEdit("1.0", this);
+        lineEditSpeedVal->setFixedWidth(40);
+        lineEditSpeedVal->setToolTip(tr("Preview playback speed: 1 is normal, 0.5 is slow motion. Not saved with the particle."));
+        // A dot decimal whatever the system locale, matching QString::toFloat below.
+        QDoubleValidator* speedValidator = new QDoubleValidator(0.0, MaxPreviewSpeed, 2, lineEditSpeedVal);
+        speedValidator->setLocale(QLocale::c());
+        lineEditSpeedVal->setValidator(speedValidator);
+        connect(lineEditSpeedVal, &QLineEdit::editingFinished, this, [lineEditSpeedVal]()
+            {
+                bool valid = false;
+                float speed = lineEditSpeedVal->text().toFloat(&valid);
+                speed = valid ? AZStd::clamp(speed, 0.0f, MaxPreviewSpeed) : 1.0f;
+                lineEditSpeedVal->setText(QString::number(speed, 'g', 3));
+                OpenParticleViewportNotificationBus::Broadcast(&OpenParticleViewportNotificationBus::Events::OnPlaybackSpeedChanged, speed);
+            });
+        layout->addWidget(labelSpeed);
+        layout->addSpacing(5);
+        layout->addWidget(lineEditSpeedVal);
+        layout->addSpacing(10);
+    }
+
     void ViewInspector::CreatePlayerProgressBar()
     {
         QHBoxLayout* horizontalLayout = new QHBoxLayout(this);
-        QLabel* labelSpeed = new QLabel(tr("Speed"), this);
-        QLineEdit* lineEditSpeedVal = new QLineEdit("1.0", this);
-        lineEditSpeedVal->setFixedWidth(30);
         QSlider* sliderPlay = new QSlider(this);
         sliderPlay->setOrientation(Qt::Horizontal);
         QLabel* timePlay = new QLabel("00:00:00", this);
         timePlay->setFixedHeight(18);
         timePlay->setFixedWidth(55);
         horizontalLayout->addSpacing(30);
-        horizontalLayout->addWidget(labelSpeed);
-        horizontalLayout->addSpacing(5);
-        horizontalLayout->addWidget(lineEditSpeedVal);
-        horizontalLayout->addSpacing(5);
         horizontalLayout->addWidget(sliderPlay);
         horizontalLayout->addSpacing(5);
         horizontalLayout->addWidget(timePlay);

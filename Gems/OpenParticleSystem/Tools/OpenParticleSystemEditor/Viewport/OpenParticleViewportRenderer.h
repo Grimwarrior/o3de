@@ -89,6 +89,7 @@ namespace OpenParticleSystemEditor
         void OnLightingPresetSelected(AZStd::string preset) override;
         void OnGridEnabledChanged(bool enable) override;
         void OnAlternateSkyboxEnabledChanged(bool enable) override;
+        void OnPlaybackSpeedChanged(float speed) override;
 
         // AZ::TickBus::Handler interface overrides...
         void OnTick(float deltaTime, AZ::ScriptTimePoint time) override;

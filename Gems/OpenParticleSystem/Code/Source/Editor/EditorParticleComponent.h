@@ -48,6 +48,7 @@ namespace OpenParticle
 
         void SetParticleAsset(AZ::Data::Asset<ParticleAsset> particleAsset, bool inParticleEditor) override;
         void SetMaterialDiffuseMap(AZ::u32 emitterIndex, AZStd::string mapPath) override;
+        void SetPreviewPlaybackSpeed(float speed) override;
 
     protected:
         AZ::u32 OnConfigurationChanged() override;
