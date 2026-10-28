@@ -541,10 +541,8 @@ namespace AzToolsFramework
                 // Initialize Undo Batch object
                 ScopedUndoBatch undoBatch("Instantiate Prefab");
 
-                // Instantiate the Prefab
-                PrefabDom instanceToParentUnderDomBeforeCreate;
-                m_instanceToTemplateInterface->GenerateInstanceDomBySerializing(instanceToParentUnderDomBeforeCreate, instanceToParentUnder->get());
-
+                // Instantiate the Prefab. (This used to serialize the whole parent instance - usually the level - into a
+                // DOM that was never read, making every instantiation cost O(level size).)
                 auto instanceToCreate = prefabEditorEntityOwnershipInterface->InstantiatePrefab(relativePath, instanceToParentUnder);
 
                 if (!instanceToCreate)
