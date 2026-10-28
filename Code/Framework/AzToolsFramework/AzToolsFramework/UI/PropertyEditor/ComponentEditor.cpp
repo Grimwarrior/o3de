@@ -841,6 +841,13 @@ namespace AzToolsFramework
 
     void ComponentEditor::OnExpanderChanged(bool expanded)
     {
+        // A full rebuild is queued because the components may already be deleted; it builds this card again anyway.
+        if (m_preventDataAccess)
+        {
+            emit OnExpansionContractionDone();
+            return;
+        }
+
         for (auto component : m_components)
         {
             EditorEntityInfoRequestBus::Event(component->GetEntityId(), &EditorEntityInfoRequestBus::Events::SetComponentExpanded, component->GetId(), expanded);

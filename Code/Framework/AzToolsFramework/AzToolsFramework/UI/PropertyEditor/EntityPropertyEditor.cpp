@@ -5783,6 +5783,13 @@ namespace AzToolsFramework
 
     void EntityPropertyEditor::OnCollapseAll()
     {
+        // The Collapse All button is not one of the actions a queued refresh disables, so it can be clicked after the
+        // selected entity's components were deleted but before the rebuild ran. Rebuild first so the editors are valid.
+        if (m_isAlreadyQueuedRefresh)
+        {
+            UpdateContents();
+        }
+
         // Each collapse would otherwise activate the whole inspector layout, so batch them and do it once.
         setUpdatesEnabled(false);
         m_isBatchingExpansion = true;
