@@ -386,6 +386,9 @@ namespace AzToolsFramework::Prefab
         }
         m_instanceUpdateExecutorInterface->AddInstanceToQueue(focusedInstance);
 
+        // Update every queued instance on the next tick, ignoring the batch size and deferral.
+        m_instanceUpdateExecutorInterface->FlushOnNextUpdate();
+
         return AZ::Success();
     }
     

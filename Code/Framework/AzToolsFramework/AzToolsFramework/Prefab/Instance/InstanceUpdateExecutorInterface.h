@@ -39,6 +39,12 @@ namespace AzToolsFramework
             //!     this function is called until the queue is empty.
             virtual bool UpdateTemplateInstancesInQueue(bool flush = true) = 0;
 
+            //! Makes the next UpdateTemplateInstancesInQueue call a flush.
+            virtual void FlushOnNextUpdate() = 0;
+
+            //! @return true if the instance or an ancestor is held back outside the focused prefab, so its entities are stale.
+            virtual bool IsInstanceUpdateDeferred(const Instance& instance) const = 0;
+
             //! @return bool on whether instances are currently updated in the waiting queue.
             virtual bool IsUpdatingTemplateInstancesInQueue() const = 0;
 

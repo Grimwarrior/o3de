@@ -121,6 +121,7 @@ set(FILES
     Prefab/PrefabInstanceDomGeneratorTests.cpp
     Prefab/PrefabInstanceToTemplatePropagatorTests.cpp
     Prefab/PrefabInstantiateTests.cpp
+    Prefab/PrefabInstanceUpdateExecutorTests.cpp
     Prefab/PrefabAssetFixupTests.cpp
     Prefab/PrefabLoadTemplateTests.cpp
     Prefab/PrefabProcessorRemoveComponentPerPlatformTests.cpp

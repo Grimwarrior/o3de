@@ -45,6 +45,8 @@ namespace AzToolsFramework
             // Note, this function destroys and re-creates Entity* and Component*, do not assume your pointers are still good after this.
             bool UpdateTemplateInstancesInQueue(bool flush) override;
             bool IsUpdatingTemplateInstancesInQueue() const override;
+            void FlushOnNextUpdate() override;
+            bool IsInstanceUpdateDeferred(const Instance& instance) const override;
 
             void RemoveTemplateInstanceFromQueue(Instance* instance) override;
             void QueueRootPrefabLoadedNotificationForNextPropagation() override;
@@ -62,6 +64,18 @@ namespace AzToolsFramework
 
             void AddInstanceToQueue(Instance* instance);
 
+            //! @return The number of instances to update per non-flush call, or 0 for no limit.
+            int GetInstanceCountToUpdateInBatch() const;
+
+            //! @return The focused instance if deferral is on and a prefab other than the level is focused, else nullptr.
+            const Instance* GetFocusedInstanceToDeferAround() const;
+
+            //! @return true if the instance is neither inside the focused instance nor one of its ancestors.
+            static bool IsOutsideFocus(const Instance& instance, const Instance& focusedInstance);
+
+            //! Moves the deferred instances back to the front of the update queue, ahead of the newer entries.
+            void RequeueDeferredInstances();
+
             // ToolsApplicationNotificationBus overrides ...
             void AfterUndoRedo() override;
 
@@ -71,12 +85,16 @@ namespace AzToolsFramework
             InstanceEntityMapperInterface* m_instanceEntityMapperInterface = nullptr;
             AZ::IO::Path m_rootPrefabInstanceSourcePath;
             AZStd::deque<Instance*> m_instancesUpdateQueue;
+            // Instances held back by ed_prefabDeferInstanceUpdatesInFocusMode (still in m_uniqueInstancesForPropagation).
+            AZStd::deque<Instance*> m_deferredInstancesUpdateQueue;
             AZStd::unordered_set<Instance*> m_uniqueInstancesForPropagation;
 
             AZ::Event<GameModeState>::Handler m_GameModeEventHandler;
+            // Batch size given at construction. When 0, ed_prefabInstanceUpdateBatchSize decides.
             int m_instanceCountToUpdateInBatch = 0;
             bool m_isRootPrefabInstanceLoaded = false;
             bool m_shouldPausePropagation = false;
+            bool m_flushOnNextUpdate = false;
             bool m_updatingTemplateInstancesInQueue { false };
         };
     }

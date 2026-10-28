@@ -9,6 +9,7 @@
 #include <AzToolsFramework/Prefab/Instance/InstanceUpdateExecutor.h>
 
 #include <AzCore/Component/TickBus.h>
+#include <AzCore/Console/IConsole.h>
 #include <AzCore/Interface/Interface.h>
 #include <AzCore/Memory/AllocatorManager.h>
 #include <AzToolsFramework/Entity/EditorEntityContextBus.h>
@@ -20,11 +21,31 @@
 #include <AzToolsFramework/Prefab/Instance/TemplateInstanceMapperInterface.h>
 #include <AzToolsFramework/Prefab/Instance/InstanceEntityMapperInterface.h>
 #include <AzToolsFramework/Prefab/PrefabDomUtils.h>
+#include <AzToolsFramework/Prefab/PrefabFocusInterface.h>
+#include <AzToolsFramework/Prefab/PrefabInstanceUtils.h>
 #include <AzToolsFramework/Prefab/PrefabPublicInterface.h>
 #include <AzToolsFramework/Prefab/PrefabPublicNotificationBus.h>
 #include <AzToolsFramework/Prefab/PrefabSystemComponentInterface.h>
 #include <AzToolsFramework/Prefab/Template/Template.h>
 #include <AzToolsFramework/Prefab/PrefabPublicRequestBus.h>
+
+// Spreads prefab instance rebuilds over several ticks; flushes (undo/redo, game mode, focus changes) still rebuild all.
+AZ_CVAR(
+    int,
+    ed_prefabInstanceUpdateBatchSize,
+    0,
+    nullptr,
+    AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+    "Number of prefab instances rebuilt per Editor tick after a prefab edit. 0 rebuilds all queued instances in one tick.");
+
+// Holds back instances outside the focused prefab until the focus changes or a flush; edits to them are discarded meanwhile.
+AZ_CVAR(
+    bool,
+    ed_prefabDeferInstanceUpdatesInFocusMode,
+    false,
+    nullptr,
+    AZ::ConsoleFunctorFlags::DontReplicate | AZ::ConsoleFunctorFlags::DontDuplicate,
+    "If set, other instances of a prefab being edited in prefab edit mode are only rebuilt when leaving prefab edit mode.");
 
 namespace AzToolsFramework
 {
@@ -143,13 +164,83 @@ namespace AzToolsFramework
             // Skip the removal from the queue if the instance is not present in the set.
             if (m_uniqueInstancesForPropagation.erase(instance))
             {
-                AZStd::erase_if(
-                    m_instancesUpdateQueue,
-                    [instance](Instance* entry)
-                    {
-                        return entry == instance;
-                    });
+                auto isInstance = [instance](Instance* entry)
+                {
+                    return entry == instance;
+                };
+                AZStd::erase_if(m_instancesUpdateQueue, isInstance);
+                AZStd::erase_if(m_deferredInstancesUpdateQueue, isInstance);
             }
+        }
+
+        int InstanceUpdateExecutor::GetInstanceCountToUpdateInBatch() const
+        {
+            if (m_instanceCountToUpdateInBatch > 0)
+            {
+                return m_instanceCountToUpdateInBatch;
+            }
+            return AZStd::max(static_cast<int>(ed_prefabInstanceUpdateBatchSize), 0);
+        }
+
+        const Instance* InstanceUpdateExecutor::GetFocusedInstanceToDeferAround() const
+        {
+            if (!ed_prefabDeferInstanceUpdatesInFocusMode)
+            {
+                return nullptr;
+            }
+
+            auto* prefabFocusInterface = AZ::Interface<PrefabFocusInterface>::Get();
+            if (!prefabFocusInterface)
+            {
+                return nullptr;
+            }
+
+            AzFramework::EntityContextId editorEntityContextId = AzFramework::EntityContextId::CreateNull();
+            EditorEntityContextRequestBus::BroadcastResult(editorEntityContextId, &EditorEntityContextRequests::GetEditorEntityContextId);
+
+            InstanceOptionalReference focusedInstance = prefabFocusInterface->GetFocusedPrefabInstance(editorEntityContextId);
+            // When the level itself is focused every instance is inside the focus, so there is nothing to defer.
+            if (!focusedInstance.has_value() || !focusedInstance->get().HasParentInstance())
+            {
+                return nullptr;
+            }
+            return &focusedInstance->get();
+        }
+
+        bool InstanceUpdateExecutor::IsOutsideFocus(const Instance& instance, const Instance& focusedInstance)
+        {
+            return !PrefabInstanceUtils::IsDescendantInstance(instance, focusedInstance) &&
+                !PrefabInstanceUtils::IsDescendantInstance(focusedInstance, instance);
+        }
+
+        void InstanceUpdateExecutor::RequeueDeferredInstances()
+        {
+            while (!m_deferredInstancesUpdateQueue.empty())
+            {
+                m_instancesUpdateQueue.push_front(m_deferredInstancesUpdateQueue.back());
+                m_deferredInstancesUpdateQueue.pop_back();
+            }
+        }
+
+        bool InstanceUpdateExecutor::IsInstanceUpdateDeferred(const Instance& instance) const
+        {
+            const Instance* focusedInstance = GetFocusedInstanceToDeferAround();
+            if (!focusedInstance || m_uniqueInstancesForPropagation.empty())
+            {
+                return false;
+            }
+
+            // A queued ancestor outside the focus also leaves this instance stale.
+            for (const Instance* current = &instance; current;
+                 current = current->HasParentInstance() ? &current->GetParentInstance()->get() : nullptr)
+            {
+                if (m_uniqueInstancesForPropagation.find(const_cast<Instance*>(current)) != m_uniqueInstancesForPropagation.end() &&
+                    IsOutsideFocus(*current, *focusedInstance))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         void InstanceUpdateExecutor::LazyConnectGameModeEventHandler()
@@ -175,10 +266,21 @@ namespace AzToolsFramework
             {
                 m_updatingTemplateInstancesInQueue = true;
 
-                const bool shouldLimitQueueSize = !flush && m_instanceCountToUpdateInBatch > 0;
+                flush = flush || m_flushOnNextUpdate;
+                m_flushOnNextUpdate = false;
+
+                // Held-back instances were queued first, so they go back to the front.
+                const bool deferOutsideFocus = !flush && GetFocusedInstanceToDeferAround() != nullptr;
+                if (!deferOutsideFocus)
+                {
+                    RequeueDeferredInstances();
+                }
+
+                const int batchSize = GetInstanceCountToUpdateInBatch();
+                const bool shouldLimitQueueSize = !flush && batchSize > 0;
 
                 const int instanceCountToUpdateInBatch = shouldLimitQueueSize ?
-                     AZStd::min(aznumeric_cast<int>(m_instancesUpdateQueue.size()), m_instanceCountToUpdateInBatch)
+                     AZStd::min(aznumeric_cast<int>(m_instancesUpdateQueue.size()), batchSize)
                     : aznumeric_cast<int>(m_instancesUpdateQueue.size());
 
                 TemplateId currentTemplateId = InvalidTemplateId;
@@ -218,12 +320,24 @@ namespace AzToolsFramework
                     // Even though we potentially initialized the batch size to the queue, it's possible for the queue size to shrink
                     // during instance processing if the instance gets deleted and it was queued multiple times.  To handle this, we
                     // make sure to end the loop once the queue is empty, regardless of what the initial size was.
-                    for (int i = 0; (i < instanceCountToUpdateInBatch) && !m_instancesUpdateQueue.empty(); ++i)
+                    // Held-back instances do not count towards the batch.
+                    for (int i = 0; (i < instanceCountToUpdateInBatch) && !m_instancesUpdateQueue.empty();)
                     {
-                        updatedInstances = true;
                         Instance* instanceToUpdate = m_instancesUpdateQueue.front();
                         m_instancesUpdateQueue.pop_front();
                         AZ_Assert(instanceToUpdate != nullptr, "Invalid instance on update queue.");
+
+                        // Looked up each time: rebuilding an ancestor may replace the focused instance.
+                        const Instance* focusedInstance = deferOutsideFocus ? GetFocusedInstanceToDeferAround() : nullptr;
+                        if (focusedInstance && IsOutsideFocus(*instanceToUpdate, *focusedInstance))
+                        {
+                            // Stays in m_uniqueInstancesForPropagation so it is neither queued twice nor edited while stale.
+                            m_deferredInstancesUpdateQueue.push_back(instanceToUpdate);
+                            continue;
+                        }
+
+                        ++i;
+                        updatedInstances = true;
                         m_uniqueInstancesForPropagation.erase(instanceToUpdate);
 
                         TemplateId instanceTemplateId = instanceToUpdate->GetTemplateId();
@@ -370,6 +484,11 @@ namespace AzToolsFramework
         bool InstanceUpdateExecutor::IsUpdatingTemplateInstancesInQueue() const
         {
             return m_updatingTemplateInstancesInQueue;
+        }
+
+        void InstanceUpdateExecutor::FlushOnNextUpdate()
+        {
+            m_flushOnNextUpdate = true;
         }
 
         void InstanceUpdateExecutor::QueueRootPrefabLoadedNotificationForNextPropagation()

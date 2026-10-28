@@ -885,6 +885,17 @@ namespace AzToolsFramework
                 return AZ::Success();
             }
 
+            // A held-back instance is stale; a patch from it would write its old state back into the template.
+            if (auto* instanceUpdateExecutorInterface = AZ::Interface<InstanceUpdateExecutorInterface>::Get();
+                instanceUpdateExecutorInterface && instanceUpdateExecutorInterface->IsInstanceUpdateDeferred(owningInstance->get()))
+            {
+                AZ_Warning("Prefab", false, "GenerateUndoNodesForEntityChangeAndUpdateCache - "
+                    "Discarded a change to entity %s: its prefab instance is outside the focused prefab and waits for an update "
+                    "(ed_prefabDeferInstanceUpdatesInFocusMode). Leave prefab edit mode before editing it.",
+                    entityId.ToString().c_str());
+                return AZ::Success();
+            }
+
             AZ::Entity* entity = GetEntityById(entityId);
             if (!entity)
             {
