@@ -235,6 +235,46 @@ namespace UnitTest
         EXPECT_EQ(CountWheelsNamed(RenamedWheelEntityName), CarCount);
     }
 
+    TEST_F(PrefabInstanceUpdateExecutorTests, LeavingPrefabEditModeDoesNotReloadUntouchedLevelEntities)
+    {
+        // Focus the level so its DOM cache is populated, as it is after a level load.
+        m_prefabFocusPublicInterface->FocusOnOwningPrefab(GetRootContainerEntityId());
+        PropagateAllTemplateChanges();
+
+        // A name change not recorded in the template survives only if the level entity is not reloaded.
+        AZ::EntityId lampEntityId = CreateEditorEntityUnderRoot("Lamp");
+        AzToolsFramework::GetEntityById(lampEntityId)->SetName("NotInTemplate");
+
+        FocusOnCar(0);
+        m_prefabFocusPublicInterface->FocusOnOwningPrefab(GetRootContainerEntityId());
+        PropagateAllTemplateChanges();
+
+        AZ::Entity* lampEntity = AzToolsFramework::GetEntityById(lampEntityId);
+        ASSERT_TRUE(lampEntity);
+        EXPECT_EQ(lampEntity->GetName(), "NotInTemplate");
+    }
+
+    TEST_F(PrefabInstanceUpdateExecutorTests, LeavingPrefabEditModeShowsLevelOverridesAgain)
+    {
+        m_prefabFocusPublicInterface->FocusOnOwningPrefab(GetRootContainerEntityId());
+        PropagateAllTemplateChanges();
+
+        // With the level focused, the rename is an override on Car_1 only.
+        RenameWheelWithoutPropagation(0, "LevelOverride");
+        PropagateAllTemplateChanges();
+        EXPECT_EQ(GetWheelName(0), "LevelOverride");
+        EXPECT_EQ(GetWheelName(1), WheelEntityName);
+
+        // Prefab edit mode shows the car template without the level override.
+        FocusOnCar(0);
+        EXPECT_EQ(GetWheelName(0), WheelEntityName);
+
+        m_prefabFocusPublicInterface->FocusOnOwningPrefab(GetRootContainerEntityId());
+        PropagateAllTemplateChanges();
+        EXPECT_EQ(GetWheelName(0), "LevelOverride");
+        EXPECT_EQ(GetWheelName(1), WheelEntityName);
+    }
+
     TEST_F(PrefabInstanceUpdateExecutorTests, DeferInFocusModeTurnedOffReleasesHeldBackInstances)
     {
         SetDeferInFocusMode(true);

@@ -307,7 +307,8 @@ namespace AzToolsFramework::Prefab
         m_rootAliasFocusPathLength = aznumeric_cast<int>(AZStd::distance(m_rootAliasFocusPath.begin(), m_rootAliasFocusPath.end()));
 
         // Unset the DOM caching for previous focus and enabled it in new focus to optimize editing.
-        if (previousFocusedInstance.has_value())
+        // The level root keeps its cache: without it, its rebuild on leaving prefab edit mode reloads the whole level.
+        if (previousFocusedInstance.has_value() && previousFocusedInstance->get().HasParentInstance())
         {
             previousFocusedInstance->get().EnableDomCaching(false);
         }
@@ -376,15 +377,22 @@ namespace AzToolsFramework::Prefab
         // Force propagation on both the previous and the new focused instances to ensure they are represented correctly.
         // The most common operation is focusing a prefab instance nested in the currently focused instance.
         // Queuing the previous focus before the new one saves some time in the propagation loop on average.
-        if (previousFocusedInstance.has_value())
+        // The level root is never queued here: only the entered or left prefab changes, and a root rebuild diffs the whole level.
+        const bool isPreviousFocusTheLevel = previousFocusedInstance.has_value() && !previousFocusedInstance->get().HasParentInstance();
+        if (previousFocusedInstance.has_value() && !isPreviousFocusTheLevel && !focusedInstance->get().HasParentInstance())
+        {
+            m_instanceUpdateExecutorInterface->AddInstanceToQueue(previousFocusedInstance);
+        }
+        else
         {
             // No need to update the previous focused instance if it's a descendant of the newly focused instance
-            if (!PrefabInstanceUtils::IsDescendantInstance(*previousFocusedInstance, *focusedInstance))
+            if (previousFocusedInstance.has_value() && !isPreviousFocusTheLevel &&
+                !PrefabInstanceUtils::IsDescendantInstance(*previousFocusedInstance, *focusedInstance))
             {
                 m_instanceUpdateExecutorInterface->AddInstanceToQueue(previousFocusedInstance);
             }
+            m_instanceUpdateExecutorInterface->AddInstanceToQueue(focusedInstance);
         }
-        m_instanceUpdateExecutorInterface->AddInstanceToQueue(focusedInstance);
 
         // Update every queued instance on the next tick, ignoring the batch size and deferral.
         m_instanceUpdateExecutorInterface->FlushOnNextUpdate();
