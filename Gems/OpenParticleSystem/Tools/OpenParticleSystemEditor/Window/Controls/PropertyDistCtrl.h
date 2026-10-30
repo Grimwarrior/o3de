@@ -89,6 +89,7 @@ namespace OpenParticleSystemEditor
         template<typename ValueType>
         bool UpdateRandomFunc();
         bool UpdateCurve();
+        void EnsureCurvePerAxis(OpenParticle::ParticleSourceData& sourceData);
         void ClearDistIndex() const;
         void ShowCurve() const;
         bool IsRandom() const;

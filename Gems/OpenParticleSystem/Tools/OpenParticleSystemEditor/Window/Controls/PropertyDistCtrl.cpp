@@ -546,19 +546,26 @@ namespace OpenParticleSystemEditor
         {
             if (GetDistType() == OpenParticle::DistributionType::CURVE)
             {
+                OpenParticle::ParticleSourceData* sourceData = nullptr;
+                EBUS_EVENT_ID_RESULT(
+                    sourceData, g_distUsedwidgetName, OpenParticleSystemEditor::ParticleDocumentRequestBus, GetParticleSourceData);
+                if (sourceData && index == 0)
+                {
+                    EnsureCurvePerAxis(*sourceData);
+                }
+
                 m_curveSelector->setVisible(index == 0);
                 m_curveSelector->SetCurrentChecked(0);
                 m_curveEditor->SetCurrentCurve(static_cast<int>(GetDistIndex(OpenParticle::DistributionType::CURVE, 0)));
                 m_valueFactor->SetValue(m_curveEditor->GetValueFactor());
                 m_curveTickMode->setCurrentIndex(m_curveEditor->GetTickMode());
                 m_curveEditor->update();
-                OpenParticle::ParticleSourceData* sourceData = nullptr;
-                EBUS_EVENT_ID_RESULT(
-                    sourceData, g_distUsedwidgetName, OpenParticleSystemEditor::ParticleDocumentRequestBus, GetParticleSourceData);
                 if (sourceData)
                 {
                     const AZStd::string key = sourceData->GetModuleKey(m_moduleId, m_paramId);
-                    sourceData->m_distribution.curveCaches[key].activeAxis = index;
+                    // Axis 0 is the one shown in both modes. The uniform combo index (1 for uniform) is not an axis, and storing it made the
+                    // curve editor cache the axis 0 curve under axis 1.
+                    sourceData->m_distribution.curveCaches[key].activeAxis = 0;
                 }
             }
 
@@ -836,6 +843,31 @@ namespace OpenParticleSystemEditor
         }
     }
 
+    void PropertyDistCtrl::EnsureCurvePerAxis(OpenParticle::ParticleSourceData& sourceData)
+    {
+        // A uniform curve only needs axis 0 (and a file saved that way has no curve on the others), so after leaving uniform mode the other axes
+        // can be without one and could not be edited. They start as copies of axis 0, which keeps what was playing.
+        auto& distribution = sourceData.m_distribution;
+        const size_t first = GetDistIndex(OpenParticle::DistributionType::CURVE, 0);
+        if (first == 0 || first > distribution.curves.size() || distribution.curves[first - 1] == nullptr)
+        {
+            return;
+        }
+
+        const AZStd::string key = sourceData.GetModuleKey(m_moduleId, m_paramId);
+        for (int i = 1; i < m_elementCount; i++)
+        {
+            const size_t distIndex = GetDistIndex(OpenParticle::DistributionType::CURVE, i);
+            if (distIndex != 0 && distIndex <= distribution.curves.size() && distribution.curves[distIndex - 1] != nullptr)
+            {
+                continue;
+            }
+            sourceData.AddCurve(*distribution.curves[first - 1]);
+            SetDistIndex(OpenParticle::DistributionType::CURVE, distribution.curves.size(), i);
+            distribution.curveCaches[key].curves[i] = distribution.curves.back();
+        }
+    }
+
     bool PropertyDistCtrl::UpdateCurve()
     {
         bool update = false;
@@ -862,7 +894,8 @@ namespace OpenParticleSystemEditor
                     {
                         defaultCurve = sourceData->m_distribution.curveCaches[key].curves[i];
                     }
-                    else
+                    // A cache only holds the axes that were edited or stashed, the others are null.
+                    if (defaultCurve == nullptr)
                     {
                         defaultCurve = aznew OpenParticle::Curve();
                         OpenParticle::KeyPoint start;
