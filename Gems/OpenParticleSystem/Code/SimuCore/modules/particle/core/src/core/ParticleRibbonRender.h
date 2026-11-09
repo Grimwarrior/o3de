@@ -52,6 +52,8 @@ namespace SimuCore::ParticleCore {
             AZStd::vector<ParticleRibbonVertex>& vb;
             AZStd::vector<AZ::u32>& ib;
             float lengthFraction = 0.f;
+            // normalized age of the particle (0 at birth, 1 at death), the ribbon shader's alpha erosion rises with it
+            float age = 0.f;
         };
 
         void SortParticles(const ParticlePool& pool, AZStd::vector<AZ::Vector3>& positionBuffer, const BaseInfo& emitterInfo, const RibbonConfig& config);
@@ -79,6 +81,7 @@ namespace SimuCore::ParticleCore {
 
         void UpdateBuffer(const WorldInfo& world, const RibbonConfig& config);
 
+        static float NormalizedAge(const Particle& particle);
         static bool IsEntityAxisFacing(RibbonFacing facing);
         static AZ::Vector3 EntityAxisVector(const Particle& particle, RibbonFacing facing);
 

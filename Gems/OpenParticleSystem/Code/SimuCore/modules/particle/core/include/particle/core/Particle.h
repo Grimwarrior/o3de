@@ -79,7 +79,7 @@ namespace SimuCore::ParticleCore {
     struct ParticleRibbonVertex {
         AZ::Vector4 position{ 0.f, 0.f, 0.f, 0.f};
         AZ::Color color{ 1.f, 1.f, 1.f, 1.f };
-        // u across the ribbon, v along it (by Tiling Distance when set), z the fraction of the ribbon length from 0 to 1 regardless of tiling
+        // u across the ribbon, v along it (by Tiling Distance when set), z the fraction of the ribbon length from 0 to 1 regardless of tiling, w the normalized age of the particle (0 at birth, 1 at death)
         AZ::Vector4 uv{ 0.5f, 0.5f, 0.f, 0.f };
     };
 

@@ -62,6 +62,11 @@
                 "description": "Lets the ribbon break up through the mask as it ages, instead of fading flat."
             },
             {
+                "name": "erosion",
+                "displayName": "Alpha Erosion",
+                "description": "alpha erosion: the alpha is boosted, then everything under a threshold that rises with the age of the particle is cut, so the old end of the ribbon burns away first. The same settings as the sprite material."
+            },
+            {
                 "name": "ramp",
                 "displayName": "Gradient",
                 "description": "A colour gradient along the ribbon, across it or by the mask."
@@ -262,6 +267,154 @@
                     "connection": {
                         "type": "ShaderInput",
                         "name": "m_dissolveSoftness"
+                    }
+                }
+            ],
+            "erosion": [
+                {
+                    "name": "enable",
+                    "displayName": "Enable",
+                    "description": "Turns alpha erosion on.",
+                    "type": "Bool",
+                    "defaultValue": false,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionEnable"
+                    }
+                },
+                {
+                    "name": "alphaMultiplier",
+                    "displayName": "Alpha Multiplier",
+                    "description": "Boosts texture alpha x particle alpha before the threshold; high values give hard edged shapes.",
+                    "type": "Float",
+                    "defaultValue": 20.0,
+                    "min": 0.0,
+                    "softMax": 50.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionAlphaMultiplier"
+                    }
+                },
+                {
+                    "name": "thresholdStart",
+                    "displayName": "Threshold At Birth",
+                    "description": "Boosted alpha below this is cut when the particle spawns.",
+                    "type": "Float",
+                    "defaultValue": 0.125,
+                    "min": 0.0,
+                    "softMax": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionThresholdStart"
+                    }
+                },
+                {
+                    "name": "thresholdEnd",
+                    "displayName": "Threshold At Death",
+                    "description": "Threshold at the end of the particle's life; higher than the start erodes the ribbon as it ages, starting at its old end.",
+                    "type": "Float",
+                    "defaultValue": 0.25,
+                    "min": 0.0,
+                    "softMax": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionThresholdEnd"
+                    }
+                },
+                {
+                    "name": "softness",
+                    "displayName": "Edge Softness",
+                    "description": "Width of the fade above the threshold; small values give crisp edges.",
+                    "type": "Float",
+                    "defaultValue": 0.25,
+                    "min": 0.001,
+                    "softMax": 2.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionSoftness"
+                    }
+                },
+                {
+                    "name": "noiseMap",
+                    "displayName": "Noise Map",
+                    "description": "Tiling noise (red channel) sampled twice with different scroll speeds.",
+                    "type": "Image",
+                    "defaultValue": "Textures/OpenParticle/RibbonNoise_greyscale.png",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseMap"
+                    }
+                },
+                {
+                    "name": "noiseTiling",
+                    "displayName": "Noise Tiling",
+                    "description": "Repeats of the noise across the ribbon (first) and along it (second).",
+                    "type": "Vector2",
+                    "defaultValue": [ 1.0, 1.0 ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseTiling"
+                    }
+                },
+                {
+                    "name": "noiseScroll1",
+                    "displayName": "Noise Scroll 1",
+                    "description": "UV per second of the first noise sample.",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.0, 0.25 ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseScroll1"
+                    }
+                },
+                {
+                    "name": "noiseScroll2",
+                    "displayName": "Noise Scroll 2",
+                    "description": "UV per second of the second noise sample.",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.0, 0.125 ],
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseScroll2"
+                    }
+                },
+                {
+                    "name": "noiseBoost",
+                    "displayName": "Noise Boost",
+                    "description": "Multiplies the averaged noise before it is clamped to 1.",
+                    "type": "Float",
+                    "defaultValue": 4.0,
+                    "min": 0.0,
+                    "softMax": 40.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseColorBoost"
+                    }
+                },
+                {
+                    "name": "noiseColorStrength",
+                    "displayName": "Noise On Colour",
+                    "description": "How much the noise darkens the colour (0 = off).",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseColorStrength"
+                    }
+                },
+                {
+                    "name": "noiseAlphaStrength",
+                    "displayName": "Noise On Alpha",
+                    "description": "How much the noise eats into the alpha before the threshold (0 = off).",
+                    "type": "Float",
+                    "defaultValue": 0.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_erosionNoiseAlphaStrength"
                     }
                 }
             ],

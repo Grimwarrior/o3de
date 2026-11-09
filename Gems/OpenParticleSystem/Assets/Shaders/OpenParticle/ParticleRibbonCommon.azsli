@@ -36,6 +36,20 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     float       m_dissolve;
     float       m_dissolveSoftness;
 
+    // Alpha erosion, the same as the sprite material's: alpha is boosted, then pixels below a threshold that rises with the age of the particle are cut.
+    bool        m_erosionEnable;
+    float       m_erosionAlphaMultiplier;
+    float       m_erosionThresholdStart;
+    float       m_erosionThresholdEnd;
+    float       m_erosionSoftness;
+    Texture2D   m_erosionNoiseMap;
+    float2      m_erosionNoiseTiling;
+    float2      m_erosionNoiseScroll1;
+    float2      m_erosionNoiseScroll2;
+    float       m_erosionNoiseColorStrength;
+    float       m_erosionNoiseColorBoost;
+    float       m_erosionNoiseAlphaStrength;
+
     // Ramp: a gradient that recolours the ribbon along its length, across its width or by the mask.
     Texture2D   m_rampMap;
     float       m_rampMix;
@@ -105,6 +119,8 @@ struct VertexOutput
     float4 color : COLOR;
     float2 uv : UV0;
     float lengthFraction : UV1;
+    // normalized age of the particle at this point of the ribbon, 0 at birth and 1 at death
+    float age : UV2;
 };
 
 VertexOutput MainVS(in VertexInput input)
@@ -117,6 +133,7 @@ VertexOutput MainVS(in VertexInput input)
     output.color = input.color;
     output.uv = input.uv0.xy;
     output.lengthFraction = input.uv0.z;
+    output.age = input.uv0.w;
     return output;
 }
 
@@ -124,6 +141,24 @@ struct PixelOutput
 {
      float4 color : SV_Target0;
 };
+
+// Two scrolling samples of one noise texture break up the colour and optionally the alpha, then the boosted alpha is cut below a threshold that rises with the age of
+// the particle, so the old end of a ribbon burns away first. The noise follows the ribbon uv, so Noise Tiling is in repeats across and along it.
+float4 ApplyRibbonErosion(float4 color, float2 uv, float age)
+{
+    const float time = SceneSrg::m_time;
+    const float2 noiseUv = uv * MaterialSrg::m_erosionNoiseTiling;
+    const float n1 = MaterialSrg::m_erosionNoiseMap.Sample(MaterialSrg::m_sampler, noiseUv + MaterialSrg::m_erosionNoiseScroll1 * time).r;
+    const float n2 = MaterialSrg::m_erosionNoiseMap.Sample(MaterialSrg::m_sampler, noiseUv + float2(0.37, 0.61) + MaterialSrg::m_erosionNoiseScroll2 * time).r;
+    const float noise = saturate((n1 + n2) * 0.5 * MaterialSrg::m_erosionNoiseColorBoost);
+    color.rgb *= lerp(1.0, noise, MaterialSrg::m_erosionNoiseColorStrength);
+    color.a *= lerp(1.0, noise, MaterialSrg::m_erosionNoiseAlphaStrength);
+
+    const float threshold = lerp(MaterialSrg::m_erosionThresholdStart, MaterialSrg::m_erosionThresholdEnd, saturate(age));
+    const float boosted = color.a * MaterialSrg::m_erosionAlphaMultiplier;
+    color.a = saturate((boosted - threshold) / max(MaterialSrg::m_erosionSoftness, 0.001));
+    return color;
+}
 
 // The ribbon uv: u runs across the width (0 to 1), v along the length (a texture repeat per Tiling Distance when that is set). lengthFraction is 0 to 1 along
 // the ribbon in any case, so the ramp and the end fades keep working with Tiling Distance. Returns the colour before the blend mode touches it.
@@ -152,6 +187,12 @@ float4 ShadeRibbon(in VertexOutput input)
     color.a *= dissolveKeep;
 
     color.a *= lerp(1.0, mask, MaterialSrg::m_maskStrength);
+
+    // Erosion works on the texture, age and mask alpha; the soft sides and ends, the ramp and the opacity come after it so they keep their soft falloff.
+    if (MaterialSrg::m_erosionEnable)
+    {
+        color = ApplyRibbonErosion(color, uv, input.age);
+    }
 
     // Ramp along the length (0), across the width (1) or by the mask (2).
     float rampCoord = input.lengthFraction;

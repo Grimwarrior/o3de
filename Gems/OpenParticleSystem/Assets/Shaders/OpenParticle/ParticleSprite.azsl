@@ -50,12 +50,35 @@ ShaderResourceGroup MaterialSrg : SRG_PerMaterial
     float       m_erosionNoiseColorBoost;
     float       m_erosionNoiseAlphaStrength;
 
+    // Edge mask : gradient fade towards the edge of the quad; shape 0 radial, 1 box
+    bool        m_edgeMaskEnable;
+    uint        m_edgeMaskShape;
+    float       m_edgeMaskInner;
+    float       m_edgeMaskOuter;
+    float       m_edgeMaskPower;
+
+    // Mask map : grayscale texture stretched over the whole quad, multiplies the opacity
+    bool        m_maskMapEnable;
+    Texture2D   m_maskMap;
+    float2      m_maskMapScale;
+    float2      m_maskMapOffset;
+    bool        m_maskMapInvert;
+    float       m_maskMapPower;
+
     Sampler m_sampler
     {
         MaxAnisotropy = 16;
         AddressU = Wrap;
         AddressV = Wrap;
         AddressW = Wrap;
+    };
+
+    Sampler m_maskSampler
+    {
+        MaxAnisotropy = 16;
+        AddressU = Clamp;
+        AddressV = Clamp;
+        AddressW = Clamp;
     };
 }
 
@@ -222,6 +245,28 @@ float4 ApplyErosion(float4 color, float4 erosion)
     return color;
 }
 
+// 1 in the middle of the quad, 0 outside the outer radius; works on the quad uv so every flipbook cell fades the same way
+float EdgeMask(float2 quadUv)
+{
+    float2 p = (quadUv - 0.5) * 2.0;
+    float dist = (MaterialSrg::m_edgeMaskShape == 0) ? length(p) : max(abs(p.x), abs(p.y));
+    float outer = max(MaterialSrg::m_edgeMaskOuter, MaterialSrg::m_edgeMaskInner + 0.001);
+    float t = saturate((dist - MaterialSrg::m_edgeMaskInner) / (outer - MaterialSrg::m_edgeMaskInner));
+    return pow(1.0 - smoothstep(0.0, 1.0, t), MaterialSrg::m_edgeMaskPower);
+}
+
+float MaskMapValue(float2 quadUv)
+{
+    // scale and offset work around the quad centre, so the mask grows and moves from its middle
+    float2 uv = (quadUv - 0.5) / max(MaterialSrg::m_maskMapScale, 0.01) + 0.5 - MaterialSrg::m_maskMapOffset;
+    float value = MaterialSrg::m_maskMap.Sample(MaterialSrg::m_maskSampler, uv).r;
+    if (MaterialSrg::m_maskMapInvert)
+    {
+        value = 1.0 - value;
+    }
+    return pow(saturate(value), MaterialSrg::m_maskMapPower);
+}
+
 struct PixelOutput
 {
      float4 color : SV_Target0;
@@ -247,6 +292,32 @@ PixelOutput MainPS(in VertexOutput input)
     if (MaterialSrg::m_erosionEnable)
     {
         output.color = ApplyErosion(output.color, input.erosion);
+    }
+    if (MaterialSrg::m_edgeMaskEnable || MaterialSrg::m_maskMapEnable)
+    {
+        // After erosion so its hard threshold cannot undo the gradient; additive and subtractive blending ignore alpha, so they fade the colour
+        float mask = 1.0;
+        if (MaterialSrg::m_edgeMaskEnable)
+        {
+            mask *= EdgeMask(input.erosion.xy);
+        }
+        if (MaterialSrg::m_maskMapEnable)
+        {
+            mask *= MaskMapValue(input.erosion.xy);
+        }
+        switch (o_blendMode)
+        {
+        case BlendMode::Additive:
+        case BlendMode::Subtractive:
+            output.color.rgb *= mask;
+            break;
+        case BlendMode::Modulate:
+            output.color.rgb = lerp(float3(1.0, 1.0, 1.0), output.color.rgb, mask);
+            break;
+        default:
+            break;
+        }
+        output.color.a *= mask;
     }
     output.color.rgb *= MaterialSrg::m_brightness;
     float2 emissiveUv = uvs[MaterialSrg::m_emissiveMapUvIndex];

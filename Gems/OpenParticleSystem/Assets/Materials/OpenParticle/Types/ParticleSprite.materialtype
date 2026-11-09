@@ -55,9 +55,156 @@
                 "name": "erosion",
                 "displayName": "Alpha Erosion",
                 "description": "alpha erosion: the alpha is boosted, then everything under a threshold that rises with particle age is cut, so thin parts burn away first."
+            },
+            {
+                "name": "edgeMask",
+                "displayName": "Edge Mask",
+                "description": "Fades the sprite towards the edge of its quad with a gradient, so hard cut edges of the texture (or of a flipbook cell) disappear."
+            },
+            {
+                "name": "maskMap",
+                "displayName": "Mask Map",
+                "description": "A grayscale texture laid over the whole quad (not per flipbook cell) that multiplies the sprite's opacity: white keeps, black hides. Combines with the Edge Mask."
             }
         ],
         "properties": {
+            "maskMap": [
+                {
+                    "name": "enable",
+                    "displayName": "Enable",
+                    "description": "Turns the mask texture on.",
+                    "type": "Bool",
+                    "defaultValue": false,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMapEnable"
+                    }
+                },
+                {
+                    "name": "map",
+                    "displayName": "Mask Texture",
+                    "description": "Grayscale mask, read from the red channel; it stretches over the quad, so every flipbook cell gets the same mask.",
+                    "type": "Image",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMap"
+                    }
+                },
+                {
+                    "name": "scale",
+                    "displayName": "Scale",
+                    "description": "Size of the mask on the quad around its centre: 1 fits the quad, above 1 enlarges it (shows only the middle), below 1 shrinks it. Outside the texture the nearest edge pixel is used.",
+                    "type": "Vector2",
+                    "defaultValue": [ 1.0, 1.0 ],
+                    "min": 0.01,
+                    "softMax": 4.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMapScale"
+                    }
+                },
+                {
+                    "name": "offset",
+                    "displayName": "Offset",
+                    "description": "Moves the mask across the quad, in quad widths.",
+                    "type": "Vector2",
+                    "defaultValue": [ 0.0, 0.0 ],
+                    "softMin": -1.0,
+                    "softMax": 1.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMapOffset"
+                    }
+                },
+                {
+                    "name": "invert",
+                    "displayName": "Invert",
+                    "description": "Swaps what the mask keeps and hides.",
+                    "type": "Bool",
+                    "defaultValue": false,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMapInvert"
+                    }
+                },
+                {
+                    "name": "power",
+                    "displayName": "Power",
+                    "description": "Shapes the mask values: above 1 hides the grays faster, below 1 lets them through.",
+                    "type": "Float",
+                    "defaultValue": 1.0,
+                    "min": 0.05,
+                    "softMax": 4.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_maskMapPower"
+                    }
+                }
+            ],
+            "edgeMask": [
+                {
+                    "name": "enable",
+                    "displayName": "Enable",
+                    "description": "Turns the edge mask on.",
+                    "type": "Bool",
+                    "defaultValue": false,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeMaskEnable"
+                    }
+                },
+                {
+                    "name": "shape",
+                    "displayName": "Shape",
+                    "description": "Radial fades in a circle around the centre of the quad; Box fades towards the four edges.",
+                    "type": "Enum",
+                    "enumValues": [ "Radial", "Box" ],
+                    "defaultValue": "Radial",
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeMaskShape"
+                    }
+                },
+                {
+                    "name": "innerRadius",
+                    "displayName": "Inner Radius",
+                    "description": "Full opacity up to this distance from the centre. 0 is the centre, 1 is the middle of each quad edge (a radial corner is 1.41).",
+                    "type": "Float",
+                    "defaultValue": 0.5,
+                    "min": 0.0,
+                    "softMax": 1.5,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeMaskInner"
+                    }
+                },
+                {
+                    "name": "outerRadius",
+                    "displayName": "Outer Radius",
+                    "description": "Fully transparent from this distance on; the gradient runs between the inner and outer radius.",
+                    "type": "Float",
+                    "defaultValue": 1.0,
+                    "min": 0.0,
+                    "softMax": 1.5,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeMaskOuter"
+                    }
+                },
+                {
+                    "name": "power",
+                    "displayName": "Power",
+                    "description": "Shapes the gradient: 1 is smooth, above 1 fades faster near the inner radius, below 1 holds longer.",
+                    "type": "Float",
+                    "defaultValue": 1.0,
+                    "min": 0.05,
+                    "softMax": 4.0,
+                    "connection": {
+                        "type": "ShaderInput",
+                        "name": "m_edgeMaskPower"
+                    }
+                }
+            ],
             "general": [
                 {
                     "name": "DiffuseMap",

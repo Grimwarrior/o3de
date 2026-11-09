@@ -314,8 +314,10 @@ namespace SimuCore::ParticleCore {
                 const bool entityAxis = IsEntityAxisFacing(config.facing);
                 AZ::Vector3 right = entityAxis ? EntityAxisVector(head, config.facing)
                                                : CalRightVector(world, config, segment.tangent0, head.globalPosition);
+                const float headAge = NormalizedAge(head);
+                const float endAge = NormalizedAge(end);
                 BufferInfo bInfo{head.globalPosition, head.color,
-                    right, head.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib, travelingDistance / lengthDivisor};
+                    right, head.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib, travelingDistance / lengthDivisor, headAge};
                 (segmentId == 0) ? FillHeadVertex(bInfo) : FillVertex(bInfo);
 
                 for (AZ::u32 interpId = 1; interpId < segment.interpCount; interpId++) {
@@ -331,7 +333,7 @@ namespace SimuCore::ParticleCore {
                     right = entityAxis ? EntityAxisVector(head, config.facing).Lerp(EntityAxisVector(end, config.facing), step).GetNormalized()
                                        : CalRightVector(world, config, up, head.globalPosition);
                     BufferInfo info{pos, color, right, width, vertexIdx, indexIdx, curTexV, vb, ib,
-                        (pos.GetDistance(head.globalPosition) + travelingDistance) / lengthDivisor};
+                        (pos.GetDistance(head.globalPosition) + travelingDistance) / lengthDivisor, AZStd::lerp(headAge, endAge, step)};
                     FillVertex(info);
                 }
 
@@ -340,7 +342,7 @@ namespace SimuCore::ParticleCore {
                                        : CalRightVector(world, config, segment.tangent1, end.globalPosition).GetNormalized();
                     curTexV = bTileV ? anchoredV(segment.end) : segment.distance / totalDistance;
                     BufferInfo info{end.globalPosition, end.color,
-                        right, end.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib, segment.distance / lengthDivisor};
+                        right, end.scale.GetX(), vertexIdx, indexIdx, curTexV, vb, ib, segment.distance / lengthDivisor, endAge};
                     FillEndVertex(info);
                     continue;
                 }
@@ -356,12 +358,12 @@ namespace SimuCore::ParticleCore {
 
         prv[info.vertexIdx].position = AZ::Vector4(info.pos - info.right * info.width * 0.5f, 0.f);
         prv[info.vertexIdx].color = info.color;
-        prv[info.vertexIdx].uv = AZ::Vector4(0.f, info.texV, info.lengthFraction, 0.f);
+        prv[info.vertexIdx].uv = AZ::Vector4(0.f, info.texV, info.lengthFraction, info.age);
         idx[info.indexIdx++] = info.vertexIdx++;
 
         prv[info.vertexIdx].position = AZ::Vector4(info.pos + info.right * info.width * 0.5f, 0.f);
         prv[info.vertexIdx].color = info.color;
-        prv[info.vertexIdx].uv = AZ::Vector4(1.f, info.texV, info.lengthFraction, 0.f);
+        prv[info.vertexIdx].uv = AZ::Vector4(1.f, info.texV, info.lengthFraction, info.age);
         idx[info.indexIdx++] = info.vertexIdx++;
     }
 
@@ -371,14 +373,14 @@ namespace SimuCore::ParticleCore {
         AZ::u32* idx = info.ib.data();
         prv[info.vertexIdx].position = AZ::Vector4(info.pos - info.right * info.width * 0.5f, 0.f);
         prv[info.vertexIdx].color = info.color;
-        prv[info.vertexIdx].uv = AZ::Vector4(0.f, info.texV, info.lengthFraction, 0.f);
+        prv[info.vertexIdx].uv = AZ::Vector4(0.f, info.texV, info.lengthFraction, info.age);
         idx[info.indexIdx++] = info.vertexIdx++;
 
         idx[info.indexIdx] = idx[info.indexIdx - 2];
         info.indexIdx++;
         prv[info.vertexIdx].position = AZ::Vector4(info.pos + info.right * info.width * 0.5f, 0.f);
         prv[info.vertexIdx].color = info.color;
-        prv[info.vertexIdx].uv = AZ::Vector4(1.f, info.texV, info.lengthFraction, 0.f);
+        prv[info.vertexIdx].uv = AZ::Vector4(1.f, info.texV, info.lengthFraction, info.age);
         idx[info.indexIdx++] = info.vertexIdx++;
 
         idx[info.indexIdx] = idx[info.indexIdx - 3];
@@ -395,17 +397,22 @@ namespace SimuCore::ParticleCore {
         AZ::u32* idx = info.ib.data();
         prv[info.vertexIdx].position = AZ::Vector4(info.pos - info.right * info.width * 0.5f, 0.f);
         prv[info.vertexIdx].color = info.color;
-        prv[info.vertexIdx].uv = AZ::Vector4(0.f, info.texV, info.lengthFraction, 0.f);
+        prv[info.vertexIdx].uv = AZ::Vector4(0.f, info.texV, info.lengthFraction, info.age);
         idx[info.indexIdx++] = info.vertexIdx++;
 
         idx[info.indexIdx] = idx[info.indexIdx - 2];
         info.indexIdx++;
         prv[info.vertexIdx].position = AZ::Vector4(info.pos + info.right * info.width * 0.5f, 0.f);
         prv[info.vertexIdx].color = info.color;
-        prv[info.vertexIdx].uv = AZ::Vector4(1.f, info.texV, info.lengthFraction, 0.f);
+        prv[info.vertexIdx].uv = AZ::Vector4(1.f, info.texV, info.lengthFraction, info.age);
         idx[info.indexIdx++] = info.vertexIdx++;
         idx[info.indexIdx] = idx[info.indexIdx - 3];
         info.indexIdx++;
+    }
+
+    float ParticleRibbonRender::NormalizedAge(const Particle& particle)
+    {
+        return particle.lifeTime > 0.f ? std::clamp(particle.currentLife / particle.lifeTime, 0.f, 1.f) : 0.f;
     }
 
     bool ParticleRibbonRender::IsEntityAxisFacing(RibbonFacing facing)
